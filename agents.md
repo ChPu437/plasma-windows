@@ -436,6 +436,12 @@ The coding agent should:
 * never install large dependencies without explaining why
 * keep the project buildable at every milestone
 
+Any potentially destructive operation (for example: modifying the registry,
+changing the shell configuration, installing software) must NOT be performed
+on the development machine. Such operations are only allowed inside the test
+VM. When such an operation needs to be done, the agent must stop and tell the
+user to run it on the VM instead of executing it locally.
+
 When uncertain whether a dependency or architectural change is necessary, prefer the simpler implementation and ask for confirmation.
 
 The current milestone is complete only when `shell.exe` builds and runs successfully on the Windows 10 LTSC 2021 VMware VM.
