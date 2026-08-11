@@ -1,0 +1,23 @@
+diff --git "a/src\\plugins\\styles\\modernwindows\\qwindows11style.cpp" "b/src\\plugins\\styles\\modernwindows\\qwindows11style.cpp"
+index f80d9f5..dde4f4b 100644
+--- "a/src\\plugins\\styles\\modernwindows\\qwindows11style.cpp"
++++ "b/src\\plugins\\styles\\modernwindows\\qwindows11style.cpp"
+@@ -2879,10 +2879,18 @@ void QWindows11Style::dwmSetWindowCornerPreference(const QWidget *widget, bool b
+     if (!d->nativeRoundedTopLevelWindows)
+         return;
+ #ifdef Q_CC_MSVC
++#if defined(DWMWA_WINDOW_CORNER_PREFERENCE)
+     static constexpr auto dmwmaWindowCornerPreference = DWMWA_WINDOW_CORNER_PREFERENCE;
+     static constexpr auto dwmcpRound = DWMWCP_ROUND;
+     static constexpr auto dwmcpRoundSmall = DWMWCP_ROUNDSMALL;
+     static constexpr auto dwmcpDefault = DWMWCP_DEFAULT;
++#else
++    // Windows SDK < 22000 (e.g. 10.0.19041) does not provide these
++    static constexpr auto dmwmaWindowCornerPreference = 33;
++    static constexpr auto dwmcpRound = 2;
++    static constexpr auto dwmcpRoundSmall = 3;
++    static constexpr auto dwmcpDefault = 0;
++#endif
+ #else
+     // MinGW 13.1.0 does not provide this
+     static constexpr auto dmwmaWindowCornerPreference = 33;
