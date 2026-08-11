@@ -112,3 +112,72 @@ physical machine's shell.
 Phase 0 is complete only when `shell.exe` runs as described above. Shell
 replacement (Phase 0.5, switching `explorer.exe` <-> `shell.exe` via the
 shell configuration) is a separate milestone and must not be attempted yet.
+
+## Phase 0.5 - Shell switching
+
+`tools/switch-shell.cmd` is a safe per-user mechanism to switch the
+current user's shell. It changes **only** the value
+
+```
+HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Shell
+```
+
+of the current user. It never modifies system binaries and never touches
+Winlogon. Registry writes are performed by the companion script
+`tools/shell-registry.ps1` (values are passed via environment variables,
+so paths containing spaces work correctly).
+
+### Commands
+
+```bat
+switch-shell.cmd status                       :: show current shell + backup
+switch-shell.cmd install <path\shell.exe>     :: switch the user's shell
+switch-shell.cmd install <path\shell.exe> /force
+switch-shell.cmd restore                      :: roll back to the previous shell
+```
+
+* `install` refuses to run outside a VMware VM (manufacturer check) unless
+  `/force` is given.
+* Before changing anything, `install` saves the current value to
+  `%USERPROFILE%\.plasma-windows\shell-backup.txt`.
+* `restore` puts the backed-up value back; with no backup it restores
+  `explorer.exe`.
+* The change takes effect after logoff/logon or a VM restart.
+
+### Testing the script safely
+
+For verification without touching the real configuration, copy the script
+to the VM and run:
+
+```bat
+set SWITCH_SHELL_TESTKEY=HKCU\Software\PlasmaWindows\Test
+switch-shell.cmd status
+switch-shell.cmd install C:\test\shell.exe /force
+reg query HKCU\Software\PlasmaWindows\Test
+switch-shell.cmd restore
+reg query HKCU\Software\PlasmaWindows\Test
+```
+
+`SWITCH_SHELL_TESTKEY` redirects every write to a scratch key, so the real
+`Winlogon\Shell` value is never touched. `SWITCH_SHELL_DRYRUN=1` prints
+what would happen without writing anything (safe to use on any machine).
+
+### Phase 0.5 test procedure in the VM
+
+1. Take a **VMware snapshot**.
+2. Complete the Phase 0 manual tests first.
+3. Copy `shell.exe` and `switch-shell.cmd` into the VM
+   (e.g. `C:\test\`).
+4. Run `switch-shell.cmd install C:\test\shell.exe --debug`, verify with
+   `switch-shell.cmd status`.
+5. Log off, log back on. `shell.exe` should now be the desktop shell
+   (no taskbar, no desktop icons - just the Plasma Windows test window).
+6. Press `ESC`/`Alt+F4` to exit, then relaunch `explorer.exe` manually to
+   confirm recovery works.
+7. Run `switch-shell.cmd restore`, log off/on again, confirm Explorer is
+   back.
+8. If anything fails: `Ctrl+Shift+Esc` -> `File > Run new task` ->
+   `cmd.exe` -> `switch-shell.cmd restore`, or restore the snapshot.
+
+Never run `install` on the physical development machine. All shell-switch
+operations belong to the test VM only.
