@@ -68,6 +68,30 @@ session bus, Qt QDBus client connectivity. Deliverables: `tools/dbus/`,
 3. Probe verifies: window enumeration -> active window -> activate/raise.
 4. Gate: probe results match real Windows window state.
 
+**Status: DONE (2026-08-11).** All probe checks PASS with craft-built
+KWindowSystem + E:\Qt runtime (see environment notes below):
+platform detection, windows(), activeWindow() == GetForegroundWindow,
+workArea(), KWindowInfo (caption/pid/geometry/state/type), windowAdded and
+activeWindowChanged signals (SetWinEventHook), activateWindow() actually
+raising a minimized window. Patch: `patches/kwindowsystem/0001-windows-backend.patch`
+(framework core + plugin + KWindowInfo Windows support + KWindowSystemWindows
+public API). Also `patches/qtbase/0001-modernwindows-style-sdk19041-fallback.patch`
+(Qt 6.11 needs Win11 SDK constants; literal fallback for SDK 19041).
+
+**Environment notes (dev machine):**
+- craft-built Qt6Gui apps crash at load unless the full craft runtime set
+  (msvcp140_1/2, vcruntime140_1, etc.) is app-local or on PATH from
+  CraftRoot\bin; the craft binary-cache Qt had a broken zlib/libpng
+  linkage (inflateReset2 bound to libpng16.dll) - fixed by rebuilding
+  qtbase from source (`craft --no-cache libs/qt6/qtbase`).
+- QT_PLUGIN_PATH did not surface in libraryPaths here; the probe finds the
+  KWindowSystem platform plugin by placing it under
+  `<appdir>/kf6/org.kde.kwindowsystem.platforms/`.
+- SetWinEventHook requires an interactive window station; automation
+  sessions may fail hook registration (probe reports SKIP in that case).
+- The M2 probe is built with CMAKE_PREFIX_PATH=E:\Qt...;CraftRoot (Qt
+  headers/libs from E:\Qt, KF6 from CraftRoot - same Qt 6.11.1 version).
+
 ### M3 - plasma-workspace 6.7.4 (patched source build)
 1. Blueprint: add 6.7.4 to kde/plasma version.ini tarballs, bump defaulttarget.
 2. Patches: WITH_X11=OFF / WITH_X11_SESSION=OFF; make Wayland/LayerShellQt/

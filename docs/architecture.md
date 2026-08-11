@@ -117,3 +117,9 @@ Winlogon -> shell config (HKCU) -> switch-shell.cmd mechanism
 ## 8. Out of scope (explicit)
 
 KWin, Wayland, X11, systemd, ksmserver, lock screen/polkit.
+
+## 9. Our changes on top of stock KDE sources
+
+Every modification we made to stock KDE/Qt code - what it does, how to
+use it, how it is implemented, and its limitations - is documented in
+`docs/windows-port-notes.md` (with patch files in `patches/`).

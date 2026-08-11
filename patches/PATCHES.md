@@ -5,6 +5,43 @@ kept next to the component it modifies and is applied with `patch -p1`
 from the unpacked source root (Craft `patchToApply` for craft-managed
 packages; manual `patch -p1` for plain CMake builds).
 
+Design, usage and implementation notes for everything we built on top of
+the stock KDE sources: see `docs/windows-port-notes.md`.
+
+## kwindowsystem (6.28.0) - Windows backend
+
+`0001-windows-backend.patch` adds a complete Windows platform backend
+(Phase 3 M2):
+
+* framework core: `Platform::Windows` + `isPlatformWindows()`;
+  `KWindowInfo` Windows data support (caption/pid/geometry/state via
+  Win32/DWM, snapshots in the existing private class, `CHECK_PLATFORM`
+  guard); new public `KWindowSystemWindows` (window list, stacking order,
+  active window, work area, change signals) + private interface and plugin
+  interface extension `createWindowList()`.
+* plugin `KF6WindowSystemWindowsPlugin` (`src/platforms/windows/`):
+  `KWindowSystemPrivateV5` impl (activateWindow via the classic
+  foreground-stealing dance, showingDesktop via minimize/restore, XDG
+  token APIs as documented no-ops), `KWindowEffects` (DWM accent policy:
+  acrylic blur behind, blur as background-contrast approximation),
+  `WindowList` (EnumWindows + SetWinEventHook out-of-context hooks,
+  queued signal delivery; hook handler methods must be `Q_INVOKABLE` for
+  string-based `QMetaObject::invokeMethod`).
+* build wiring: `KWINDOWSYSTEM_WINDOWS` option (auto-ON on WIN32),
+  sources/headers/install rules, plugin into
+  `kf6/org.kde.kwindowsystem.platforms`.
+
+Applied via Craft recipe `patchToApply["6.28.0"]`.
+
+## qtbase (6.11.1) - SDK 19041 fallback
+
+`0001-modernwindows-style-sdk19041-fallback.patch` (in
+`libs/qt6/qtbase/.craft/`, applied for all versions):
+`qwindows11style.cpp` uses `DWMWA_WINDOW_CORNER_PREFERENCE` and friends
+which only exist in Windows SDK >= 22000; the MSVC branch now falls back
+to the literal values (mirroring the existing MinGW fallback) when the
+constants are not defined.
+
 ## kded (6.28.0)
 
 * `0001-skip-posix-signal-handling-on-windows.patch`
