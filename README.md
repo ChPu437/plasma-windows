@@ -135,6 +135,24 @@ physical machine's shell.
 
 Phase 1 is complete when the Qt shell passes these tests in the VM.
 
+## Phase 2 - KDE Craft and Frameworks
+
+* Craft environment: `D:\Projects\CraftRoot` (ABI `windows-cl-msvc2022-x86_64`,
+  binary cache `https://files.kde.org/craft/Qt6/26.05/.../msvc2022/x86_64`).
+  Enter it with `. D:\Projects\CraftRoot\craft\craftenv.ps1`.
+* Installed KF6 6.28.0 frameworks: KConfig, KCoreAddons, KWindowSystem,
+  KService, KIO, KNotifications (+ transitive dependencies).
+* `probe/` is a Phase 2 acceptance program linking `KF6::ConfigCore` and
+  `KF6::CoreAddons`; it verifies a KConfig read/write round-trip.
+  Build it inside the Craft environment:
+  ```powershell
+  . D:\Projects\CraftRoot\craft\craftenv.ps1
+  cmake -S probe -B probe\build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH=D:\Projects\CraftRoot
+  cmake --build probe\build
+  ```
+  Run with `D:\Projects\CraftRoot\bin` on `PATH`; success = exit 0 and
+  `probe\build\kf6probe.ini` containing the written value.
+
 ## Phase 0.5 - Shell switching
 
 `tools/switch-shell.cmd` is a safe per-user mechanism to switch the
