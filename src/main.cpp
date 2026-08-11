@@ -1,59 +1,64 @@
-// Plasma Windows - Phase 0
+// Plasma Windows - Phase 1
 //
-// Minimal native Win32 shell executable (shell.exe).
-//
-// Phase 0 scope (see AGENTS.md):
+// Qt-based shell with the same lifecycle as the Phase 0 Win32 shell
+// (see AGENTS.md):
 //   * start on Windows 10 LTSC 2021
-//   * create a top-level window covering the desktop work area
-//   * process the normal Windows message loop
-//   * accept keyboard and mouse input
+//   * create a top-level window covering the primary monitor work area
+//   * process the normal Qt event loop
+//   * accept keyboard (ESC / Alt+F4) and mouse input
 //   * exit cleanly
-//   * produce useful diagnostics
+//   * startup logging, exit codes, optional debug logging (--debug)
 //
-// No Qt, no KDE, no Plasma, no external dependencies.
+// No KDE dependencies yet. Win32 is used only for console attachment and
+// diagnostics parity.
+
+#include <QApplication>
+#include <QColor>
+#include <QCommandLineParser>
+#include <QCoreApplication>
+#include <QFile>
+#include <QFont>
+#include <QGuiApplication>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QScreen>
+#include <QString>
+#include <QSysInfo>
+#include <QWidget>
 
 #include <windows.h>
-#include <shellapi.h>
-#include <shellscalingapi.h>
-#include <windowsx.h>
-#include <winternl.h>
 
 #include <cstdarg>
 #include <cstdio>
-#include <cwchar>
-#include <string>
 
 namespace {
 
-constexpr wchar_t kClassName[] = L"PlasmaWindowsPhase0Shell";
-constexpr wchar_t kWindowTitle[] = L"Plasma Windows (Phase 0)";
-
 // Exit codes (documented in README.md).
 enum ExitCode : int {
-    kExitOk = 0,             // clean shutdown requested by the user
-    kExitGeneric = 1,        // unexpected startup failure
-    kExitRegisterClass = 2,  // RegisterClassExW failed
-    kExitCreateWindow = 3,   // CreateWindowExW failed
-    kExitMessageLoop = 4,    // GetMessage returned -1
+    kExitOk = 0,       // clean shutdown requested by the user
+    kExitGeneric = 1,  // startup failure
 };
 
 // ---------------------------------------------------------------------------
-// Diagnostics (AGENTS.md section 7): startup logging, graceful error
-// reporting, exit code reporting, optional debug logging via --debug.
+// Diagnostics (AGENTS.md section 7)
 
 bool g_debug = false;
-FILE* g_logFile = nullptr;
+QFile g_logFile;
 
-void LogOpen(const wchar_t* path)
+void LogOpen(const QString& path)
 {
-    _wfopen_s(&g_logFile, path, L"ab");
+    g_logFile.setFileName(path);
+    if (!g_logFile.open(QIODevice::Append)) {
+        OutputDebugStringA("warning: could not open shell.log\n");
+    }
 }
 
 void LogClose()
 {
-    if (g_logFile) {
-        fclose(g_logFile);
-        g_logFile = nullptr;
+    if (g_logFile.isOpen()) {
+        g_logFile.flush();
+        g_logFile.close();
     }
 }
 
@@ -90,9 +95,9 @@ void LogWrite(Level level, const char* fmt, ...)
              st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
              st.wMilliseconds, LevelTag(level), text);
 
-    if (g_logFile) {
-        fputs(line, g_logFile);
-        fflush(g_logFile);
+    if (g_logFile.isOpen()) {
+        g_logFile.write(line);
+        g_logFile.flush();
     }
     OutputDebugStringA(line);
     fputs(line, stdout);
@@ -104,217 +109,91 @@ void LogWrite(Level level, const char* fmt, ...)
 #define LOG_ERROR(...) LogWrite(Level::kError, __VA_ARGS__)
 #define LOG_DEBUG(...) LogWrite(Level::kDebug, __VA_ARGS__)
 
-// Log the failure, show a message box (useful when testing in the VM) and
-// exit with a distinct exit code.
-[[noreturn]] void FatalFailure(const char* what, DWORD error, int exitCode)
-{
-    wchar_t detail[512] = L"";
-    FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                   nullptr, error, 0, detail,
-                   static_cast<DWORD>(sizeof(detail) / sizeof(detail[0])),
-                   nullptr);
-
-    LOG_ERROR("FATAL: %s failed (GetLastError=%lu): %ls", what, error, detail);
-
-    wchar_t msg[1024];
-    swprintf(msg, sizeof(msg) / sizeof(msg[0]),
-             L"shell.exe failed to start.\r\n\r\n"
-             L"%hs failed with GetLastError = %lu\r\n"
-             L"%ls\r\n\r\n"
-             L"See shell.log for details.",
-             what, error, detail);
-
-    MessageBoxW(nullptr, msg, L"Plasma Windows (Phase 0) - startup failure",
-                MB_OK | MB_ICONERROR);
-    LogClose();
-    ExitProcess(static_cast<UINT>(exitCode));
-}
-
-// Report the real OS version. GetVersionEx is deprecated and lies without
-// a matching manifest; RtlGetVersion does not.
-void GetOSVersion(char (&buf)[64])
-{
-    RTL_OSVERSIONINFOW os{};
-    os.dwOSVersionInfoSize = sizeof(os);
-
-    typedef LONG(WINAPI* RtlGetVersionFn)(PRTL_OSVERSIONINFOW);
-    const auto fn = reinterpret_cast<RtlGetVersionFn>(
-        GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion"));
-
-    if (fn && fn(&os) == 0) {
-        snprintf(buf, sizeof(buf), "%lu.%lu.%lu", os.dwMajorVersion,
-                 os.dwMinorVersion, os.dwBuildNumber);
-    } else {
-        snprintf(buf, sizeof(buf), "unknown");
-    }
-}
-
-std::wstring GetExePath()
-{
-    wchar_t buf[MAX_PATH];
-    const DWORD n = GetModuleFileNameW(nullptr, buf, MAX_PATH);
-    return std::wstring(buf, n ? n : 0);
-}
-
 // ---------------------------------------------------------------------------
-// Window
+// Shell window
 
-RECT GetPrimaryWorkArea()
-{
-    RECT rc{};
-    if (SystemParametersInfoW(SPI_GETWORKAREA, 0, &rc, 0)) {
-        return rc;
+class ShellWindow : public QWidget {
+public:
+    explicit ShellWindow()
+    {
+        setWindowTitle(QStringLiteral("Plasma Windows (Phase 1)"));
     }
-    GetWindowRect(GetDesktopWindow(), &rc);
-    return rc;
-}
 
-void ResizeToWorkArea(HWND hwnd)
-{
-    const RECT rc = GetPrimaryWorkArea();
-    LOG_DEBUG("resize to work area (%ld, %ld, %ld, %ld)", rc.left, rc.top,
-              rc.right, rc.bottom);
-    MoveWindow(hwnd, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
-               TRUE);
-}
+protected:
+    void paintEvent(QPaintEvent*) override
+    {
+        QPainter p(this);
+        p.fillRect(rect(), QColor(0x23, 0x26, 0x29));
 
-void DrawCenteredText(HDC dc, const RECT& rc, const wchar_t* text,
-                      int fontSize, COLORREF color, const wchar_t* face)
-{
-    HFONT font = CreateFontW(-fontSize, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE,
-                             FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                             CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                             DEFAULT_PITCH, face);
-    const HFONT oldFont = static_cast<HFONT>(SelectObject(dc, font));
-    SetTextColor(dc, color);
-    SetBkMode(dc, TRANSPARENT);
-    RECT r = rc;
-    DrawTextW(dc, text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE |
-                                   DT_NOPREFIX);
-    SelectObject(dc, oldFont);
-    DeleteObject(font);
-}
+        const int w = rect().width();
+        const int h = rect().height();
 
-void PaintShell(HWND hwnd)
-{
-    PAINTSTRUCT ps;
-    const HDC dc = BeginPaint(hwnd, &ps);
+        DrawCentered(&p, QRect(0, h / 4, w, 160),
+                     QStringLiteral("Plasma Windows"), 96,
+                     QColor(0xF0, 0xF0, 0xF0), QFont::DemiBold);
+        DrawCentered(&p, QRect(0, h / 4 + 160, w, 80),
+                     QStringLiteral("Phase 1 - Qt shell"), 40,
+                     QColor(0x9A, 0xA0, 0xA6), QFont::Normal);
+        DrawCentered(&p, QRect(0, h - 96, w, 64),
+                     QStringLiteral("Press ESC or Alt+F4 to exit"), 28,
+                     QColor(0x6E, 0x74, 0x7A), QFont::Normal);
+    }
 
-    RECT rc;
-    GetClientRect(hwnd, &rc);
-
-    // Breeze Dark-inspired background.
-    const HBRUSH bg = CreateSolidBrush(RGB(0x23, 0x26, 0x29));
-    FillRect(dc, &rc, bg);
-    DeleteObject(bg);
-
-    RECT titleRect = rc;
-    titleRect.top = rc.top + rc.bottom / 4;
-    titleRect.bottom = rc.bottom / 4 + 160;
-    DrawCenteredText(dc, titleRect, L"Plasma Windows", 96, RGB(0xF0, 0xF0, 0xF0),
-                     L"Segoe UI");
-
-    RECT subtitleRect = rc;
-    subtitleRect.top = titleRect.bottom;
-    subtitleRect.bottom = titleRect.bottom + 80;
-    DrawCenteredText(dc, subtitleRect, L"Phase 0 - native Win32 shell", 40,
-                     RGB(0x9A, 0xA0, 0xA6), L"Segoe UI");
-
-    RECT hintRect = rc;
-    hintRect.top = rc.bottom - 96;
-    hintRect.bottom = rc.bottom - 32;
-    DrawCenteredText(dc, hintRect, L"Press ESC or Alt+F4 to exit", 28,
-                     RGB(0x6E, 0x74, 0x7A), L"Segoe UI");
-
-    EndPaint(hwnd, &ps);
-}
-
-LRESULT CALLBACK ShellWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
-{
-    switch (msg) {
-    case WM_CREATE:
-        LOG_INFO("window created (hwnd=%p)", hwnd);
-        return 0;
-
-    case WM_PAINT:
-        PaintShell(hwnd);
-        return 0;
-
-    case WM_ERASEBKGND:
-        return 1; // background is painted in WM_PAINT
-
-    case WM_KEYDOWN:
-        LOG_DEBUG("WM_KEYDOWN vk=0x%X", static_cast<unsigned>(wp));
-        if (wp == VK_ESCAPE) {
+    void keyPressEvent(QKeyEvent* event) override
+    {
+        LOG_DEBUG("key pressed: key=0x%X, text=%ls", event->key(),
+                  qUtf16Printable(event->text()));
+        if (event->key() == Qt::Key_Escape) {
             LOG_INFO("ESC pressed, shutting down");
-            PostQuitMessage(kExitOk);
+            close();
+        } else {
+            QWidget::keyPressEvent(event);
         }
-        return 0;
-
-    case WM_LBUTTONDOWN:
-    case WM_RBUTTONDOWN:
-        LOG_DEBUG("mouse button %s at (%d, %d)",
-                  msg == WM_LBUTTONDOWN ? "left" : "right",
-                  GET_X_LPARAM(lp), GET_Y_LPARAM(lp));
-        return 0;
-
-    case WM_DISPLAYCHANGE:
-        LOG_INFO("display changed: %lux%lu, bpp=%lu", LOWORD(lp), HIWORD(lp),
-                 static_cast<DWORD>(wp));
-        ResizeToWorkArea(hwnd);
-        return 0;
-
-    case WM_SETTINGCHANGE:
-        if (wp == SPI_SETWORKAREA) {
-            LOG_INFO("work area changed, resizing");
-            ResizeToWorkArea(hwnd);
-        }
-        return 0;
-
-    case WM_QUERYENDSESSION:
-        LOG_INFO("WM_QUERYENDSESSION, allowing end session");
-        return TRUE;
-
-    case WM_ENDSESSION:
-        if (wp) {
-            LOG_INFO("WM_ENDSESSION, shutting down");
-            PostQuitMessage(kExitOk);
-        }
-        return 0;
-
-    case WM_CLOSE:
-        LOG_INFO("WM_CLOSE received, shutting down");
-        PostQuitMessage(kExitOk);
-        return 0;
-
-    case WM_DESTROY:
-        LOG_INFO("window destroyed");
-        PostQuitMessage(kExitOk);
-        return 0;
-
-    default:
-        return DefWindowProcW(hwnd, msg, wp, lp);
     }
-}
 
-bool RegisterShellClass(HINSTANCE inst)
+    void mousePressEvent(QMouseEvent* event) override
+    {
+        LOG_DEBUG("mouse button %d at (%d, %d)", event->button(),
+                  event->pos().x(), event->pos().y());
+        QWidget::mousePressEvent(event);
+    }
+
+    void closeEvent(QCloseEvent* event) override
+    {
+        LOG_INFO("window closing, shutting down");
+        QWidget::closeEvent(event);
+    }
+
+private:
+    static void DrawCentered(QPainter* p, const QRect& rc, const QString& text,
+                             int pixelSize, const QColor& color, int weight)
+    {
+        QFont font(QStringLiteral("Segoe UI"));
+        font.setPixelSize(pixelSize);
+        font.setWeight(static_cast<QFont::Weight>(weight));
+        p->setFont(font);
+        p->setPen(color);
+        p->drawText(rc, Qt::AlignCenter, text);
+    }
+};
+
+void FitToWorkArea(ShellWindow* window)
 {
-    WNDCLASSEXW wc{};
-    wc.cbSize = sizeof(wc);
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = ShellWndProc;
-    wc.hInstance = inst;
-    wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
-    wc.hIconSm = wc.hIcon;
-    wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    wc.hbrBackground = nullptr;
-    wc.lpszClassName = kClassName;
-    return RegisterClassExW(&wc) != 0;
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if (!screen) {
+        LOG_WARN("no primary screen available");
+        return;
+    }
+    const QRect wa = screen->availableGeometry();
+    window->setGeometry(wa);
+    LOG_INFO("work area: (%d, %d) - (%d, %d), %d x %d", wa.x(), wa.y(),
+             wa.x() + wa.width(), wa.y() + wa.height(), wa.width(),
+             wa.height());
 }
 
 } // namespace
 
-int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int)
+int main(int argc, char** argv)
 {
     // When launched from a console (cmd.exe), attach to it so log output is
     // visible. Harmless when there is no parent console.
@@ -324,85 +203,55 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int)
         setvbuf(stdout, nullptr, _IONBF, 0);
     }
 
-    const std::wstring exePath = GetExePath();
-    std::wstring exeDir = exePath;
-    const size_t slash = exeDir.find_last_of(L"\\/");
-    if (slash != std::wstring::npos) {
-        exeDir.resize(slash);
-    }
-    LogOpen((exeDir + L"\\shell.log").c_str());
+    QApplication app(argc, argv);
+    QCoreApplication::setApplicationName(QStringLiteral("shell"));
+    QCoreApplication::setApplicationVersion(QStringLiteral("0.2.0"));
 
-    int argc = 0;
-    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    for (int i = 1; i < argc; ++i) {
-        if (wcscmp(argv[i], L"--debug") == 0) {
-            g_debug = true;
-        } else if (wcscmp(argv[i], L"--help") == 0) {
-            fputs("Plasma Windows Phase 0 shell\r\n\r\n"
-                  "Usage: shell.exe [--debug]\r\n"
-                  "\r\n"
-                  "  --debug  enable verbose debug logging\r\n"
-                  "\r\n"
-                  "Press ESC or Alt+F4 to exit.\r\n",
-                  stdout);
-            LogClose();
-            return kExitOk;
-        }
-    }
-    if (argv) {
-        LocalFree(argv);
-    }
+    QCommandLineParser parser;
+    parser.setApplicationDescription(
+        QStringLiteral("Plasma Windows Phase 1 Qt shell"));
+    parser.addHelpOption();
+    const QCommandLineOption debugOption(
+        QStringLiteral("debug"),
+        QStringLiteral("enable verbose debug logging"));
+    parser.addOption(debugOption);
+    parser.process(app);
 
-    // Per-monitor DPI awareness so the work area and text scale correctly.
-    const HRESULT dpiResult = SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-    if (dpiResult != S_OK) {
-        LOG_WARN("SetProcessDpiAwareness failed, HRESULT 0x%08lX",
-                 static_cast<unsigned long>(dpiResult));
-    }
+    g_debug = parser.isSet(debugOption);
 
-    char osVer[64];
-    GetOSVersion(osVer);
-    const RECT wa = GetPrimaryWorkArea();
+    const QString exePath = QCoreApplication::applicationFilePath();
+    LogOpen(QCoreApplication::applicationDirPath() + QStringLiteral("/shell.log"));
 
-    LOG_INFO("Plasma Windows Phase 0 shell starting");
-    LOG_INFO("executable: %ls", exePath.c_str());
-    LOG_INFO("OS version: %s", osVer);
-    LOG_INFO("primary work area: (%ld, %ld) - (%ld, %ld), %ld x %ld",
-             wa.left, wa.top, wa.right, wa.bottom,
-             wa.right - wa.left, wa.bottom - wa.top);
-    LOG_INFO("command line: %ls", GetCommandLineW());
+    LOG_INFO("Plasma Windows Phase 1 Qt shell starting");
+    LOG_INFO("executable: %ls", qUtf16Printable(exePath));
+    LOG_INFO("OS: %ls (kernel %ls)", qUtf16Printable(QSysInfo::prettyProductName()),
+             qUtf16Printable(QSysInfo::kernelVersion()));
+    LOG_INFO("Qt version: %s", qVersion());
+    LOG_INFO("command line: %ls",
+             qUtf16Printable(QCoreApplication::arguments().join(QLatin1Char(' '))));
     LOG_INFO("debug logging: %s", g_debug ? "on" : "off");
 
-    if (!RegisterShellClass(inst)) {
-        FatalFailure("RegisterClassExW", GetLastError(), kExitRegisterClass);
-    }
+    ShellWindow window;
+    FitToWorkArea(&window);
+    window.show();
+    LOG_INFO("window shown");
 
-    const RECT rc = GetPrimaryWorkArea();
-    const HWND hwnd = CreateWindowExW(0, kClassName, kWindowTitle, WS_POPUP,
-                                      rc.left, rc.top, rc.right - rc.left,
-                                      rc.bottom - rc.top, nullptr, nullptr,
-                                      inst, nullptr);
-    if (!hwnd) {
-        FatalFailure("CreateWindowExW", GetLastError(), kExitCreateWindow);
-    }
-
-    ShowWindow(hwnd, SW_SHOW);
-    UpdateWindow(hwnd);
-    LOG_INFO("window shown (%ld x %ld)", rc.right - rc.left, rc.bottom - rc.top);
-
-    MSG msg{};
-    while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
-    }
-
-    if (msg.message == WM_QUIT) {
-        const int code = static_cast<int>(msg.wParam);
-        LOG_INFO("message loop ended, exiting with code %d", code);
+    QObject::connect(&window, &QWidget::destroyed, [&window] {
+        LOG_INFO("window destroyed");
+    });
+    QObject::connect(qApp, &QGuiApplication::primaryScreenChanged, [&window] {
+        LOG_INFO("primary screen changed, re-fitting");
+        FitToWorkArea(&window);
+    });
+    QObject::connect(qApp, &QGuiApplication::screenAdded, [&window] {
+        LOG_INFO("screen added, re-fitting");
+        FitToWorkArea(&window);
+    });
+    QObject::connect(qApp, &QCoreApplication::aboutToQuit, [] {
+        LOG_INFO("application exiting");
         LogClose();
-        return code;
-    }
+    });
 
-    // GetMessage returned -1: fatal message loop error.
-    FatalFailure("GetMessage", GetLastError(), kExitMessageLoop);
+    const int code = app.exec();
+    return code;
 }

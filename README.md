@@ -1,18 +1,23 @@
-# Plasma Windows - Phase 0
+# Plasma Windows
 
-A minimal native Win32 shell executable (`shell.exe`) that proves our own
-executable can serve as the Windows desktop shell. See `agents.md` for the
-full project plan.
+A Qt-based shell executable (`shell.exe`) that proves our own executable can
+serve as the Windows desktop shell. See `agents.md` for the full project
+plan.
+
+Status: **Phase 1** (Qt shell) implemented; pending verification in the VM.
 
 ## Scope
 
-Phase 0 only. No Qt, no KDE, no Plasma, no external dependencies:
+Phase 1: a minimal Qt 6 shell with the same lifecycle as the Phase 0 Win32
+shell:
 
-* creates a top-level window covering the desktop work area
-* processes the normal Windows message loop
+* creates a top-level window covering the primary monitor work area
+* processes the normal Qt event loop
 * accepts keyboard (`ESC`/`Alt+F4` to quit) and mouse input
 * exits cleanly
-* logs startup information, errors and exit codes
+* logs startup information, errors and exit codes (`--debug` switch)
+
+No KDE/Plasma dependencies yet.
 
 ## Layout
 
@@ -21,6 +26,9 @@ plasma-windows/
     CMakeLists.txt
     src/
         main.cpp
+    tools/
+        switch-shell.cmd       (Phase 0.5 shell switcher)
+        shell-registry.ps1
     README.md
 ```
 
@@ -31,6 +39,8 @@ plasma-windows/
 * Windows SDK 10.0.19041
 * CMake 3.21+
 * Ninja
+* Qt 6.11.1 MSVC 2022 64-bit (this machine: `E:\Qt\6.11.1\msvc2022_64`).
+  Plasma 6.7 (the Phase 3 target) requires Qt >= 6.10.
 
 ## Build
 
@@ -38,7 +48,7 @@ From a **Developer Command Prompt for VS 2022** (or PowerShell after running
 `vcvars64.bat`):
 
 ```bat
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=E:\Qt\6.11.1\msvc2022_64
 cmake --build build
 ```
 
@@ -48,11 +58,11 @@ Example with the VS Developer PowerShell helper:
 
 ```powershell
 $vs = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
+$env:CMAKE_PREFIX_PATH = "E:\Qt\6.11.1\msvc2022_64"
 cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" && cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build"
 ```
 
-Adjust `$vs` if Visual Studio is installed elsewhere (e.g.
-`E:\Microsoft Visual Studio\...`).
+Adjust `$vs` and `CMAKE_PREFIX_PATH` if the tools are installed elsewhere.
 
 The CMake cache pins `CMAKE_SYSTEM_VERSION=10.0.19041`; override it with
 `-DCMAKE_SYSTEM_VERSION=10.0.xxxxx` if that SDK is not installed on your
@@ -66,6 +76,22 @@ build\shell.exe --debug    :: verbose debug logging
 build\shell.exe --help     :: usage text
 ```
 
+The Qt DLLs must be found at runtime. Either add the Qt bin directory to
+`PATH`, or deploy them next to the exe:
+
+```bat
+set PATH=E:\Qt\6.11.1\msvc2022_64\bin;%PATH%
+build\shell.exe
+```
+
+(For VM deployment: `build\deploy\` is a self-contained folder - Qt DLLs,
+plugins, translations and the VC++ runtime sit next to `shell.exe`, so the
+shell works even when launched at logon without `PATH` changes. To rebuild
+it: run `windeployqt --release --compiler-runtime --dir build\deploy
+build\shell.exe`, copy `shell.exe` next to the DLLs, and verify
+`msvcp140.dll`/`vcruntime140*.dll` are present - if not, copy them from
+`<VS>\VC\Redist\MSVC\<ver>\x64\Microsoft.VC143.CRT\`.)
+
 The window covers the primary monitor work area (dark background with
 "Plasma Windows" test UI). Press `ESC` or `Alt+F4` to exit.
 
@@ -74,15 +100,11 @@ The window covers the primary monitor work area (dark background with
 * Log file `shell.log` is written next to the executable, plus
   `OutputDebugString` output (visible in DebugView).
 * When launched from `cmd.exe`, logs also appear in the console.
-* On startup failure a message box shows the failing step and exit code.
 
-| Exit code | Meaning                                  |
-|-----------|------------------------------------------|
-| 0         | clean shutdown (user quit)               |
-| 1         | unexpected startup failure               |
-| 2         | `RegisterClassExW` failed                |
-| 3         | `CreateWindowExW` failed                 |
-| 4         | `GetMessage` failed (message loop error) |
+| Exit code | Meaning                    |
+|-----------|----------------------------|
+| 0         | clean shutdown (user quit) |
+| 1         | startup failure            |
 
 ## Testing in the VM
 
@@ -90,8 +112,10 @@ Test only inside the Windows 10 LTSC 2021 VMware VM. Never change the
 physical machine's shell.
 
 1. Take a **VMware snapshot** before any test.
-2. Copy `shell.exe` into the VM.
-3. Open `cmd.exe` and run `build\shell.exe --debug` from the shell's folder.
+2. Deploy the shell: run `windeployqt --release build\shell.exe` (from the
+   Qt bin directory) so the Qt DLLs land next to `shell.exe`, then copy
+   the folder into the VM.
+3. Open `cmd.exe` and run `shell.exe --debug` from the shell's folder.
 4. Verify:
    * the window covers the desktop work area
    * the "Plasma Windows" test UI is visible
@@ -109,9 +133,7 @@ physical machine's shell.
 * start `explorer.exe` manually, then close the test shell
 * restore the VMware snapshot
 
-Phase 0 is complete only when `shell.exe` runs as described above. Shell
-replacement (Phase 0.5, switching `explorer.exe` <-> `shell.exe` via the
-shell configuration) is a separate milestone and must not be attempted yet.
+Phase 1 is complete when the Qt shell passes these tests in the VM.
 
 ## Phase 0.5 - Shell switching
 

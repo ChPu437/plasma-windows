@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(plasma-windows
-    VERSION 0.1.0
-    DESCRIPTION "Plasma Shell for Windows - Phase 0 native Win32 shell"
+    VERSION 0.2.0
+    DESCRIPTION "Plasma Shell for Windows - Phase 1 Qt shell"
     LANGUAGES CXX
 )
 
@@ -24,6 +24,13 @@ if(MSVC AND MSVC_VERSION VERSION_LESS 1930)
     message(FATAL_ERROR "MSVC v143 (Visual Studio 2022, MSVC_VERSION >= 1930) is required.")
 endif()
 
+# Qt: point CMake at the installation with -DCMAKE_PREFIX_PATH,
+# e.g. -DCMAKE_PREFIX_PATH=E:\Qt\6.11.1\msvc2022_64
+# Plasma 6.7 (the Phase 3 target) requires Qt >= 6.10.
+find_package(Qt6 6.10 REQUIRED COMPONENTS Widgets)
+
+set(CMAKE_AUTOMOC ON)
+
 add_executable(shell WIN32
     src/main.cpp
 )
@@ -42,7 +49,8 @@ if(MSVC)
 endif()
 
 target_link_libraries(shell PRIVATE
+    Qt6::Widgets
     user32
-    gdi32
-    shcore
 )
+
+qt_finalize_executable(shell)
