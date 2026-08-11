@@ -1,0 +1,119 @@
+diff --git a/src/resultset.h b/src/resultset.h
+index 7a6b6d4..46e94dd 100644
+--- a/src/resultset.h
++++ b/src/resultset.h
+@@ -49,12 +49,12 @@ public:
+     class Result
+     {
+     public:
+-        Result();
+-        ~Result();
++        PLASMAACTIVITIESSTATS_EXPORT Result();
++        PLASMAACTIVITIESSTATS_EXPORT ~Result();
+ 
+-        Result(Result &&result);
+-        Result(const Result &result);
+-        Result &operator=(Result result);
++        PLASMAACTIVITIESSTATS_EXPORT Result(Result &&result);
++        PLASMAACTIVITIESSTATS_EXPORT Result(const Result &result);
++        PLASMAACTIVITIESSTATS_EXPORT Result &operator=(Result result);
+ 
+         enum LinkStatus {
+             NotLinked = 0,
+@@ -63,26 +63,26 @@ public:
+         };
+ 
+         // TODO: KF6 rething the function names, and maybe their signature, perhaps leverage std::variant or std::optional to add semantics to the API
+-        QString resource() const; ///< String representation of resource (can represent an url or a path)
+-        QUrl url() const; ///< Url representation of a resource based on internal resource, readonly, @since 5.64
+-        QString title() const; ///< Title of the resource, or URL if title is not known
+-        QString mimetype() const; ///< Mimetype of the resource, or URL if title is not known
+-        double score() const; ///< The score calculated based on the usage statistics
+-        uint lastUpdate() const; ///< Timestamp of the last update
+-        uint firstUpdate() const; ///< Timestamp of the first update
++        PLASMAACTIVITIESSTATS_EXPORT QString resource() const; ///< String representation of resource (can represent an url or a path)
++        PLASMAACTIVITIESSTATS_EXPORT QUrl url() const; ///< Url representation of a resource based on internal resource, readonly, @since 5.64
++        PLASMAACTIVITIESSTATS_EXPORT QString title() const; ///< Title of the resource, or URL if title is not known
++        PLASMAACTIVITIESSTATS_EXPORT QString mimetype() const; ///< Mimetype of the resource, or URL if title is not known
++        PLASMAACTIVITIESSTATS_EXPORT double score() const; ///< The score calculated based on the usage statistics
++        PLASMAACTIVITIESSTATS_EXPORT uint lastUpdate() const; ///< Timestamp of the last update
++        PLASMAACTIVITIESSTATS_EXPORT uint firstUpdate() const; ///< Timestamp of the first update
+         LinkStatus linkStatus() const; ///< Differentiates between linked and non-linked resources in mixed queries
+-        QStringList linkedActivities() const; ///< Contains the activities this resource is linked to for the queries that care about resource linking
+-        QString agent() const; /// Contains the initiating agent for this resource
+-
+-        void setResource(QString resource);
+-        void setTitle(QString title);
+-        void setMimetype(QString mimetype);
+-        void setScore(double score);
+-        void setLastUpdate(uint lastUpdate);
+-        void setFirstUpdate(uint firstUpdate);
+-        void setLinkStatus(LinkStatus linkedStatus);
+-        void setLinkedActivities(QStringList activities);
+-        void setAgent(QString agent);
++        PLASMAACTIVITIESSTATS_EXPORT QStringList linkedActivities() const; ///< Contains the activities this resource is linked to for the queries that care about resource linking
++        PLASMAACTIVITIESSTATS_EXPORT QString agent() const; /// Contains the initiating agent for this resource
++
++        PLASMAACTIVITIESSTATS_EXPORT void setResource(QString resource);
++        PLASMAACTIVITIESSTATS_EXPORT void setTitle(QString title);
++        PLASMAACTIVITIESSTATS_EXPORT void setMimetype(QString mimetype);
++        PLASMAACTIVITIESSTATS_EXPORT void setScore(double score);
++        PLASMAACTIVITIESSTATS_EXPORT void setLastUpdate(uint lastUpdate);
++        PLASMAACTIVITIESSTATS_EXPORT void setFirstUpdate(uint firstUpdate);
++        PLASMAACTIVITIESSTATS_EXPORT void setLinkStatus(LinkStatus linkedStatus);
++        PLASMAACTIVITIESSTATS_EXPORT void setLinkedActivities(QStringList activities);
++        PLASMAACTIVITIESSTATS_EXPORT void setAgent(QString agent);
+ 
+     private:
+         ResultSet_ResultPrivate *d;
+@@ -128,34 +128,34 @@ public:
+         typedef const Result &reference;
+         typedef const Result *pointer;
+ 
+-        const_iterator();
+-        const_iterator(const const_iterator &source);
+-        const_iterator &operator=(const const_iterator &source);
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator();
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator(const const_iterator &source);
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator &operator=(const const_iterator &source);
+ 
+-        ~const_iterator();
++        PLASMAACTIVITIESSTATS_EXPORT ~const_iterator();
+ 
+-        bool isSourceValid() const;
++        PLASMAACTIVITIESSTATS_EXPORT bool isSourceValid() const;
+ 
+-        reference operator*() const;
+-        pointer operator->() const;
++        PLASMAACTIVITIESSTATS_EXPORT reference operator*() const;
++        PLASMAACTIVITIESSTATS_EXPORT pointer operator->() const;
+ 
+         // prefix
+-        const_iterator &operator++();
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator &operator++();
+         // postfix
+-        const_iterator operator++(int);
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator operator++(int);
+ 
+         // prefix
+-        const_iterator &operator--();
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator &operator--();
+         // postfix
+-        const_iterator operator--(int);
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator operator--(int);
+ 
+-        const_iterator operator+(difference_type n) const;
+-        const_iterator &operator+=(difference_type n);
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator operator+(difference_type n) const;
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator &operator+=(difference_type n);
+ 
+-        const_iterator operator-(difference_type n) const;
+-        const_iterator &operator-=(difference_type n);
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator operator-(difference_type n) const;
++        PLASMAACTIVITIESSTATS_EXPORT const_iterator &operator-=(difference_type n);
+ 
+-        reference operator[](difference_type n) const;
++        PLASMAACTIVITIESSTATS_EXPORT reference operator[](difference_type n) const;
+ 
+         PLASMAACTIVITIESSTATS_EXPORT friend bool operator==(const const_iterator &left, const const_iterator &right);
+         PLASMAACTIVITIESSTATS_EXPORT friend bool operator!=(const const_iterator &left, const const_iterator &right);

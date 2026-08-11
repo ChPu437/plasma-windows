@@ -1,0 +1,156 @@
+diff --git "a/CMakeLists.txt" "b/CMakeLists.txt"
+index d7aacc0..4e3e270 100644
+--- "a/CMakeLists.txt"
++++ "b/CMakeLists.txt"
+@@ -13,6 +13,10 @@ set(KF6_MIN_VERSION "6.26.0")
+ option(WITH_X11_SESSION "Build and install X11 session (deprecated)" ON)
+ option(INSTALL_SDDM_WAYLAND_SESSION OFF)
+ option(WITH_X11 "Build with X11 support. Building without is experimental" ON)
++option(WITH_WAYLAND "Build with Wayland support" ON)
++if (WIN32)
++    set(WITH_WAYLAND OFF)
++endif()
+ 
+ set(CMAKE_CXX_STANDARD 23)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+@@ -57,7 +61,9 @@ find_package(Qt6 ${QT_MIN_VERSION} CONFIG REQUIRED COMPONENTS
+ 
+ if (Qt6Gui_VERSION VERSION_GREATER_EQUAL "6.10.0")
+     find_package(Qt6GuiPrivate ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE)
+-    find_package(Qt6WaylandClientPrivate ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE)
++    if (WITH_WAYLAND)
++        find_package(Qt6WaylandClientPrivate ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE)
++    endif()
+ endif()
+ 
+ find_package(QCoro6 REQUIRED COMPONENTS Core)
+@@ -69,16 +75,20 @@ find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS
+                     OPTIONAL_COMPONENTS DocTools)
+ find_package(Plasma ${PROJECT_DEP_VERSION} REQUIRED)
+ find_package(PlasmaQuick ${PROJECT_DEP_VERSION} REQUIRED)
+-find_package(KWayland ${PROJECT_DEP_VERSION} REQUIRED)
++if (WITH_WAYLAND)
++    find_package(KWayland ${PROJECT_DEP_VERSION} REQUIRED)
++endif()
+ find_package(PlasmaActivities ${PROJECT_DEP_VERSION} REQUIRED)
+ find_package(PlasmaActivitiesStats ${PROJECT_DEP_VERSION} REQUIRED)
+ find_package(KSysGuard ${PROJECT_DEP_VERSION} CONFIG)
+ set_package_properties(KSysGuard PROPERTIES
+     DESCRIPTION "Components to monitor the system"
+-    TYPE REQUIRED
++    TYPE OPTIONAL
+ )
+ find_package(KF6Screen ${PROJECT_DEP_VERSION} CONFIG REQUIRED)
+-find_package(LayerShellQt ${PROJECT_DEP_VERSION} CONFIG REQUIRED)
++if (WITH_WAYLAND)
++    find_package(LayerShellQt ${PROJECT_DEP_VERSION} CONFIG REQUIRED)
++endif()
+ 
+ if (BUILD_TESTING)
+     include(ECMAddTests)
+@@ -121,7 +131,7 @@ set_package_properties(KF6Baloo PROPERTIES DESCRIPTION "File Searching"
+ pkg_check_modules(QALCULATE libqalculate>2.0 IMPORTED_TARGET)
+ set_package_properties(QALCULATE PROPERTIES
+    DESCRIPTION "A library for calculations, used in runners/calculator"
+-   TYPE REQUIRED)
++   TYPE OPTIONAL)
+ pkg_check_modules(DBus dbus-1 REQUIRED IMPORTED_TARGET)
+ 
+ find_package(KWinDBusInterface CONFIG REQUIRED)
+@@ -133,7 +143,7 @@ pkg_check_modules(SYSTEMD "systemd")
+ find_package(Canberra)
+ set_package_properties(Canberra PROPERTIES
+     PURPOSE "Needed to preview notification sounds"
+-    TYPE REQUIRED)
++    TYPE OPTIONAL)
+ 
+ find_package(Breeze ${PROJECT_DEP_VERSION} CONFIG)
+ set_package_properties(Breeze PROPERTIES
+@@ -216,9 +226,15 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+     endif()
+ endif()
+ 
+-find_package(Qt6WaylandClient COMPONENTS Private)
+-find_package(PlasmaWaylandProtocols 1.21.0 REQUIRED)
+-find_package(Wayland REQUIRED COMPONENTS Client Server) # Server is used in autotests
++if (WITH_WAYLAND)
++    find_package(Qt6WaylandClient COMPONENTS Private)
++endif()
++if (WITH_WAYLAND)
++    find_package(PlasmaWaylandProtocols 1.21.0 REQUIRED)
++endif()
++if (WITH_WAYLAND)
++    find_package(Wayland REQUIRED COMPONENTS Client Server) # Server is used in autotests
++endif()
+ 
+ if(FONTCONFIG_FOUND)
+   # kfontinst
+@@ -234,7 +250,9 @@ if(AppStreamQt_FOUND)
+     set(HAVE_APPSTREAMQT true)
+ endif()
+ 
+-find_package(UDev REQUIRED)
++if (NOT WIN32)
++    find_package(UDev REQUIRED)
++endif()
+ set_package_properties(UDev PROPERTIES
+     PURPOSE "Allows to play notification sounds when (un)plugging devices"
+     TYPE REQUIRED
+@@ -408,7 +426,7 @@ endif()
+ add_subdirectory(libklookandfeel)
+ add_subdirectory(libkworkspace)
+ add_subdirectory(libdbusmenuqt)
+-add_subdirectory(appmenu)
++# add_subdirectory(appmenu)  # wayland-specific, skipped on Windows
+ add_subdirectory(oom_notifier)
+ 
+ add_subdirectory(libclock)
+@@ -420,25 +438,25 @@ add_subdirectory(components)
+ add_subdirectory(plasma-windowed)
+ add_subdirectory(shell)
+ add_subdirectory(freespacenotifier)
+-add_subdirectory(klipper)
++# add_subdirectory(klipper)  # X11/Wayland clipboard daemon, skipped on Windows
+ add_subdirectory(krunner)
+ if(WITH_X11)
+-    add_subdirectory(ksmserver)
++    # add_subdirectory(ksmserver)  # X11 session manager, skipped on Windows
+ endif()
+-add_subdirectory(logout-greeter)
++# add_subdirectory(logout-greeter)  # X11, skipped on Windows
+ add_subdirectory(ksplash)
+ add_subdirectory(statusnotifierwatcher)
+ add_subdirectory(startkde)
+ add_subdirectory(themes)
+ 
+-add_subdirectory(kcms)
++# add_subdirectory(kcms)  # Windows: system configuration KCMs are out of scope
+ 
+ add_subdirectory(containmentactions)
+ add_subdirectory(runners)
+ add_subdirectory(applets)
+ add_subdirectory(wallpapers)
+ 
+-add_subdirectory(kioworkers)
++# add_subdirectory(kioworkers)  # Windows: KIO workers are a separate porting track
+ add_subdirectory(ktimezoned)
+ if(TARGET KF6::NetworkManagerQt)
+     add_subdirectory(geotimezoned)
+@@ -455,7 +473,7 @@ if(CMAKE_SYSTEM_NAME MATCHES FreeBSD)
+ add_subdirectory(solidautoeject)
+ endif()
+ 
+-ecm_optional_add_subdirectory(xembed-sni-proxy)
++# ecm_optional_add_subdirectory(xembed-sni-proxy)  # X11 XEmbed proxy, skipped on Windows
+ 
+ if (WITH_X11)
+     #TODO port away from X11
+@@ -468,7 +486,7 @@ add_subdirectory(plasmacalendarintegration)
+ 
+ add_subdirectory(appiumtests)
+ 
+-add_subdirectory(devicenotifications)
++# add_subdirectory(devicenotifications)  # udev-dependent, skipped on Windows
+ 
+ add_subdirectory(ksecretprompter)
+ 

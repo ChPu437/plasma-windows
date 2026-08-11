@@ -1,0 +1,172 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4e3e270..6d7c3b9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -427,7 +427,7 @@ add_subdirectory(libklookandfeel)
+ add_subdirectory(libkworkspace)
+ add_subdirectory(libdbusmenuqt)
+ # add_subdirectory(appmenu)  # wayland-specific, skipped on Windows
+-add_subdirectory(oom_notifier)
++# add_subdirectory(oom_notifier)  # deferred: enabled in later M3 stages
+ 
+ add_subdirectory(libclock)
+ add_subdirectory(libtaskmanager)
+@@ -435,9 +435,9 @@ add_subdirectory(libkmpris)
+ add_subdirectory(libnotificationmanager)
+ add_subdirectory(components)
+ 
+-add_subdirectory(plasma-windowed)
++# add_subdirectory(plasma-windowed)  # deferred: enabled in later M3 stages
+ add_subdirectory(shell)
+-add_subdirectory(freespacenotifier)
++# add_subdirectory(freespacenotifier)  # deferred: enabled in later M3 stages
+ # add_subdirectory(klipper)  # X11/Wayland clipboard daemon, skipped on Windows
+ add_subdirectory(krunner)
+ if(WITH_X11)
+@@ -457,38 +457,38 @@ add_subdirectory(applets)
+ add_subdirectory(wallpapers)
+ 
+ # add_subdirectory(kioworkers)  # Windows: KIO workers are a separate porting track
+-add_subdirectory(ktimezoned)
++# add_subdirectory(ktimezoned)  # deferred: enabled in later M3 stages
+ if(TARGET KF6::NetworkManagerQt)
+-    add_subdirectory(geotimezoned)
++    # add_subdirectory(geotimezoned)  # deferred: enabled in later M3 stages
+ endif()
+-add_subdirectory(menu)
+-add_subdirectory(donationmessage)
++# add_subdirectory(menu)  # deferred: enabled in later M3 stages
++# add_subdirectory(donationmessage)  # deferred: enabled in later M3 stages
+ 
+-add_subdirectory(interactiveconsole)
++# add_subdirectory(interactiveconsole)  # deferred: enabled in later M3 stages
+ 
+ # This ensures pressing the eject button on a CD drive ejects the disc
+ # It listens to the Solid::OpticalDrive::ejectPressed signal that is only
+ # supported by Solid in the HAL backend and does nothing with UDev
+ if(CMAKE_SYSTEM_NAME MATCHES FreeBSD)
+-add_subdirectory(solidautoeject)
++# add_subdirectory(solidautoeject)  # deferred: enabled in later M3 stages
+ endif()
+ 
+ # ecm_optional_add_subdirectory(xembed-sni-proxy)  # X11 XEmbed proxy, skipped on Windows
+ 
+ if (WITH_X11)
+     #TODO port away from X11
+-    ecm_optional_add_subdirectory(gmenu-dbusmenu-proxy)
++    # ecm_optional_add_subdirectory(gmenu-dbusmenu-proxy)  # deferred: enabled in later M3 stages
+ endif()
+ 
+-add_subdirectory(soliduiserver)
++# add_subdirectory(soliduiserver)  # deferred: enabled in later M3 stages
+ 
+-add_subdirectory(plasmacalendarintegration)
++# add_subdirectory(plasmacalendarintegration)  # deferred: enabled in later M3 stages
+ 
+-add_subdirectory(appiumtests)
++# add_subdirectory(appiumtests)  # deferred: enabled in later M3 stages
+ 
+ # add_subdirectory(devicenotifications)  # udev-dependent, skipped on Windows
+ 
+-add_subdirectory(ksecretprompter)
++# add_subdirectory(ksecretprompter)  # deferred: enabled in later M3 stages
+ 
+ ki18n_install(po)
+ 
+diff --git a/applets/CMakeLists.txt b/applets/CMakeLists.txt
+index 8e264cd..8213c42 100644
+--- a/applets/CMakeLists.txt
++++ b/applets/CMakeLists.txt
+@@ -1,24 +1,24 @@
+-add_subdirectory(activitybar)
+-add_subdirectory(icon)
+-add_subdirectory(analog-clock)
+-add_subdirectory(manage-inputmethod)
+-add_subdirectory(appmenu)
++# add_subdirectory(activitybar)  # deferred: enabled in later M3 stages
++# add_subdirectory(icon)  # deferred: enabled in later M3 stages
++# add_subdirectory(analog-clock)  # deferred: enabled in later M3 stages
++# add_subdirectory(manage-inputmethod)  # deferred: enabled in later M3 stages
++# add_subdirectory(appmenu)  # deferred: enabled in later M3 stages
+ if (KSysGuard_FOUND)
+-    add_subdirectory(systemmonitor)
+-    add_subdirectory(devicenotifier)
++    # add_subdirectory(systemmonitor)  # deferred: enabled in later M3 stages
++    # add_subdirectory(devicenotifier)  # deferred: enabled in later M3 stages
+ endif()
+ add_subdirectory(calendar)
+ add_subdirectory(digital-clock)
+-add_subdirectory(keyboardindicator)
++# add_subdirectory(keyboardindicator)  # deferred: enabled in later M3 stages
+ add_subdirectory(kicker)
+ add_subdirectory(lock_logout)
+-add_subdirectory(mediacontroller)
++# add_subdirectory(mediacontroller)  # deferred: enabled in later M3 stages
+ add_subdirectory(panelspacer)
+ add_subdirectory(margins-separator)
+ if(BUILD_CAMERAINDICATOR)
+-    add_subdirectory(cameraindicator)
++    # add_subdirectory(cameraindicator)  # deferred: enabled in later M3 stages
+ endif()
+-add_subdirectory(clipboard)
++# add_subdirectory(clipboard)  # deferred: enabled in later M3 stages
+ 
+ add_subdirectory(notifications)
+ add_subdirectory(systemtray)
+diff --git a/runners/CMakeLists.txt b/runners/CMakeLists.txt
+index 274823a..042eeed 100644
+--- a/runners/CMakeLists.txt
++++ b/runners/CMakeLists.txt
+@@ -1,25 +1,25 @@
+ # SPDX-FileCopyrightText: 2023 Alexander Lohnau <alexander.lohnau@gmx.de>
+ # SPDX-License-Identifier: BSD-2-Clause
+ if(KF6Baloo_FOUND)
+- add_subdirectory(baloo)
++#  add_subdirectory(baloo)  # deferred: enabled in later M3 stages
+ endif()
+-add_subdirectory(bookmarks)
++# add_subdirectory(bookmarks)  # deferred: enabled in later M3 stages
+ if (QALCULATE_FOUND)
+-    add_subdirectory(calculator)
++#     add_subdirectory(calculator)  # deferred: enabled in later M3 stages
+ endif()
+-add_subdirectory(helprunner)
+-add_subdirectory(locations)
+-add_subdirectory(places)
+-add_subdirectory(services)
+-add_subdirectory(recentdocuments)
+-add_subdirectory(shell)
+-add_subdirectory(webshortcuts)
++# add_subdirectory(helprunner)  # deferred: enabled in later M3 stages
++# add_subdirectory(locations)  # deferred: enabled in later M3 stages
++# add_subdirectory(places)  # deferred: enabled in later M3 stages
++# add_subdirectory(services)  # deferred: enabled in later M3 stages
++# add_subdirectory(recentdocuments)  # deferred: enabled in later M3 stages
++# add_subdirectory(shell)  # deferred: enabled in later M3 stages
++# add_subdirectory(webshortcuts)  # deferred: enabled in later M3 stages
+ 
+ if(AppStreamQt_FOUND)
+-    add_subdirectory(appstream)
++#     add_subdirectory(appstream)  # deferred: enabled in later M3 stages
+ endif()
+ 
+-add_subdirectory(sessions)
++# add_subdirectory(sessions)  # deferred: enabled in later M3 stages
+ if (KSysGuard_FOUND)
+-    add_subdirectory(kill)
++#     add_subdirectory(kill)  # deferred: enabled in later M3 stages
+ endif()
+diff --git a/containmentactions/CMakeLists.txt b/containmentactions/CMakeLists.txt
+index a3749a1..aafe6d6 100644
+--- a/containmentactions/CMakeLists.txt
++++ b/containmentactions/CMakeLists.txt
+@@ -1,6 +1,6 @@
+ add_subdirectory(contextmenu)
+-add_subdirectory(switchdesktop)
+-add_subdirectory(switchactivity)
++# add_subdirectory(switchdesktop)  # deferred: enabled in later M3 stages
++# add_subdirectory(switchactivity)  # deferred: enabled in later M3 stages
+ add_subdirectory(paste)
+-add_subdirectory(switchwindow)
++# add_subdirectory(switchwindow)  # deferred: enabled in later M3 stages
+ add_subdirectory(applauncher)

@@ -1,0 +1,26 @@
+diff --git a/src/backends/dbus/DBusHelperProxy.cpp b/src/backends/dbus/DBusHelperProxy.cpp
+--- a/src/backends/dbus/DBusHelperProxy.cpp
++++ b/src/backends/dbus/DBusHelperProxy.cpp
+@@ -22,5 +22,7 @@
+ #include <qplugin.h>
+ 
++#if QT_VERSION < QT_VERSION_CHECK(6, 10, 0)
+ extern Q_CORE_EXPORT const QtPrivate::QMetaTypeInterface *qMetaTypeGuiHelper;
++#endif
+ 
+ namespace KAuth
+@@ -237,4 +239,6 @@
++#if QT_VERSION < QT_VERSION_CHECK(6, 10, 0)
+     auto origMetaTypeGuiHelper = qMetaTypeGuiHelper;
+     qMetaTypeGuiHelper = nullptr;
++#endif
+ 
+     QVariantMap args;
+@@ -246,5 +248,7 @@
+     }
+ 
++#if QT_VERSION < QT_VERSION_CHECK(6, 10, 0)
+     qMetaTypeGuiHelper = origMetaTypeGuiHelper;
++#endif
+ 
+     m_currentAction = action;

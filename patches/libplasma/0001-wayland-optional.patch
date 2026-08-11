@@ -1,0 +1,23 @@
+diff --git "a/CMakeLists.txt" "b/CMakeLists.txt"
+index 1818d23..91ce33e 100644
+--- "a/CMakeLists.txt"
++++ "b/CMakeLists.txt"
+@@ -65,11 +65,18 @@ find_package(KF6 ${KF6_MIN_VERSION} REQUIRED
+ )
+ find_package(PlasmaActivities REQUIRED ${PROJECT_DEP_VERSION})
+ 
++option(WITH_WAYLAND "Build with Wayland support" ON)
++if (WIN32)
++    set(WITH_WAYLAND OFF)
++endif()
++
+ # Wayland features
++if (WITH_WAYLAND)
+ find_package(PlasmaWaylandProtocols 1.10.0 REQUIRED)
+ find_package(Qt6WaylandClient ${QT_MIN_VERSION} REQUIRED CONFIG)
+ find_package(Wayland 1.9 REQUIRED Client)
+ find_package(WaylandProtocols 1.46 REQUIRED)
++endif()
+ 
+ option(WITHOUT_X11 "Build without X11 support (skips finding X11)." OFF)
+ if(NOT WITHOUT_X11)

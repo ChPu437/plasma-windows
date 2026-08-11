@@ -1,0 +1,33 @@
+diff --git "a/src\\dbusrunner.cpp" "b/src\\dbusrunner.cpp"
+index 84293ec..cbf83a0 100644
+--- "a/src\\dbusrunner.cpp"
++++ "b/src\\dbusrunner.cpp"
+@@ -17,7 +17,9 @@
+ #include <QIcon>
+ #include <set>
+ 
++#if !defined(Q_OS_WIN)
+ #include <KWaylandExtras>
++#endif
+ #include <KWindowSystem>
+ 
+ #include "dbusutils_p.h"
+@@ -288,6 +290,7 @@ void DBusRunner::run(const KRunner::RunnerContext & /*context*/, const KRunner::
+         QDBusConnection::sessionBus().call(runMethod, QDBus::NoBlock);
+     };
+ 
++#if !defined(Q_OS_WIN)
+     if (KWindowSystem::isPlatformWayland() && qGuiApp->focusWindow()) {
+         auto tokenFuture = KWaylandExtras::xdgActivationToken(qGuiApp->focusWindow(), {});
+         tokenFuture.then(this, [this, service, matchId, actionId, run](const QString &token) {
+@@ -298,7 +301,9 @@ void DBusRunner::run(const KRunner::RunnerContext & /*context*/, const KRunner::
+             }
+             run();
+         });
+-    } else {
++    } else
++#endif
++    {
+         run();
+     }
+ }

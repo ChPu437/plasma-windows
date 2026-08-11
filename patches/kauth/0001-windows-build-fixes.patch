@@ -1,0 +1,21 @@
+diff --git "a/src/ConfigureChecks.cmake" "b/src/ConfigureChecks.cmake"
+index 1f462c2..5e578cb 100644
+--- "a/src/ConfigureChecks.cmake"
++++ "b/src/ConfigureChecks.cmake"
+@@ -157,6 +157,7 @@ set(KAUTH_HELPER_BACKEND_NAME ${KAUTH_HELPER_BACKEND} CACHE STRING "Specifies th
+ 
+ # Add the correct libraries/files depending on the backend
+ if(KAUTH_HELPER_BACKEND_NAME STREQUAL "DBUS")
++    find_package(Qt6DBus ${REQUIRED_QT_VERSION} CONFIG REQUIRED)
+     qt_add_dbus_adaptor(kauth_dbus_adaptor_SRCS
+                         backends/dbus/org.kde.kf6auth.xml
+                         backends/dbus/DBusHelperProxy.h
+@@ -167,7 +168,7 @@ if(KAUTH_HELPER_BACKEND_NAME STREQUAL "DBUS")
+         ${kauth_dbus_adaptor_SRCS}
+     )
+ 
+-    set(KAUTH_HELPER_BACKEND_LIBS Qt6::DBus KF6::AuthCore)
++    set(KAUTH_HELPER_BACKEND_LIBS Qt6::DBus Qt6::Gui KF6::AuthCore)
+ 
+     # Install some files as well
+     install(FILES backends/dbus/org.kde.kf6auth.conf

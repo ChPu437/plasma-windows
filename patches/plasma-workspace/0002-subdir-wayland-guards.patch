@@ -1,0 +1,1549 @@
+diff --git a/applets/kicker/CMakeLists.txt b/applets/kicker/CMakeLists.txt
+--- a/applets/kicker/CMakeLists.txt
++++ b/applets/kicker/CMakeLists.txt
+@@ -58,6 +58,7 @@ endif()
+ 
+ target_link_libraries(kickerplugin PRIVATE
+                       Qt::Core
++                      Qt::DBus
+                       Qt::Qml
+                       Qt::Quick
+                       Plasma::Activities
+@@ -75,17 +76,19 @@ target_link_libraries(kickerplugin PRIVATE
+                       KF6::Runner
+                       KF6::Service
+                       KF6::WindowSystem
+-                      Wayland::Client
+                       PW::KWorkspace)
+ 
+ if (Qt6_VERSION VERSION_GREATER_EQUAL "6.8.0")
+     set(private_code_option  "PRIVATE_CODE")
+ endif()
++if (WITH_WAYLAND)
+ qt_generate_wayland_protocol_client_sources(kickerplugin
+     FILES
+         "${PLASMA_WAYLAND_PROTOCOLS_DIR}/plasma-shell.xml"
+     ${private_code_option}
+ )
++endif()
++
+ 
+ if (${HAVE_APPSTREAMQT})
+ target_link_libraries(kickerplugin PRIVATE AppStreamQt)
+diff --git a/applets/kicker/kastatsfavoritesmodel.h b/applets/kicker/kastatsfavoritesmodel.h
+--- a/applets/kicker/kastatsfavoritesmodel.h
++++ b/applets/kicker/kastatsfavoritesmodel.h
+@@ -32,6 +32,10 @@ class KAStatsFavoritesModel : public PlaceholderModel
+     Q_OBJECT
+     QML_ELEMENT
+ 
++public:
++    using QAbstractItemModel::beginMoveRows;
++    using QAbstractItemModel::endMoveRows;
++
+     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+     Q_PROPERTY(QStringList favorites READ favorites WRITE setFavorites NOTIFY favoritesChanged)
+     Q_PROPERTY(int maxFavorites READ maxFavorites WRITE setMaxFavorites NOTIFY maxFavoritesChanged)
+diff --git a/applets/notifications/CMakeLists.txt b/applets/notifications/CMakeLists.txt
+--- a/applets/notifications/CMakeLists.txt
++++ b/applets/notifications/CMakeLists.txt
+@@ -70,12 +70,15 @@ ecm_target_qml_sources(org.kde.plasma.notifications SOURCES
+ if (Qt6_VERSION VERSION_GREATER_EQUAL "6.8.0")
+     set(private_code_option  "PRIVATE_CODE")
+ endif()
++if (WITH_WAYLAND)
+ qt_generate_wayland_protocol_client_sources(org.kde.plasma.notifications
+     FILES
+         "${PLASMA_WAYLAND_PROTOCOLS_DIR}/plasma-shell.xml"
+         "${Wayland_DATADIR}/wayland.xml"
+     ${private_code_option}
+ )
++endif()
++
+ 
+ target_link_libraries(org.kde.plasma.notifications PRIVATE
+                       Qt::Gui
+@@ -90,7 +93,6 @@ target_link_libraries(org.kde.plasma.notifications PRIVATE
+                       KF6::KIOWidgets # for PreviewJob
+                       KF6::Notifications # for KNotificationJobUiDelegate
+                       PW::LibNotificationManager
+-                      Wayland::Client
+                       )
+ 
+ ecm_qt_declare_logging_category(org.kde.plasma.notifications
+diff --git a/applets/systemtray/statusnotifieritemsource.cpp b/applets/systemtray/statusnotifieritemsource.cpp
+--- a/applets/systemtray/statusnotifieritemsource.cpp
++++ b/applets/systemtray/statusnotifieritemsource.cpp
+@@ -13,7 +13,9 @@
+ #include <KIconColors>
+ #include <KIconEngine>
+ #include <KIconLoader>
++#ifndef Q_OS_WIN
+ #include <KWaylandExtras>
++#endif
+ #include <KWindowSystem>
+ #include <Plasma/Theme>
+ 
+@@ -33,7 +35,11 @@
+ #include <QSysInfo>
+ #include <QVariantMap>
+ 
++#ifdef Q_OS_WIN
++#include <winsock2.h>
++#else
+ #include <netinet/in.h>
++#endif
+ 
+ #include <dbusmenuimporter.h>
+ 
+@@ -63,11 +69,15 @@ protected:
+             sendClickedEvent(id);
+             return;
+         }
++#ifndef Q_OS_WIN
+         auto tokenFuture = KWaylandExtras::xdgActivationToken(menu()->window()->windowHandle(), {});
+         tokenFuture.then(m_source, [this, id](const QString &token) {
+             m_source->provideXdgActivationToken(token);
+             sendClickedEvent(id);
+         });
++#else
++        sendClickedEvent(id);
++#endif
+     }
+ 
+ private:
+diff --git a/applets/systemtray/systemtray.cpp b/applets/systemtray/systemtray.cpp
+--- a/applets/systemtray/systemtray.cpp
++++ b/applets/systemtray/systemtray.cpp
+@@ -35,7 +35,9 @@
+ #include <KAcceleratorManager>
+ #include <KActionCollection>
+ #include <KSharedConfig>
++#ifndef Q_OS_WIN
+ #include <KWaylandExtras>
++#endif
+ #include <KWindowSystem>
+ 
+ using namespace Qt::StringLiterals;
+@@ -577,11 +579,15 @@ void SystemTray::activate(const QString &service, QPoint pos, QQuickItem *status
+         return;
+     }
+ 
++#ifndef Q_OS_WIN
+     auto tokenFuture = KWaylandExtras::xdgActivationToken(window, {});
+     tokenFuture.then(source, [source, service, pos](const QString &token) {
+         source->provideXdgActivationToken(token);
+         source->activate(pos.x(), pos.y());
+     });
++#else
++    source->activate(pos.x(), pos.y());
++#endif
+ }
+ 
+ void SystemTray::secondaryActivate(const QString &service, QPoint pos)
+@@ -599,11 +605,15 @@ void SystemTray::secondaryActivate(const QString &service, QPoint pos)
+         return;
+     }
+ 
++#ifndef Q_OS_WIN
+     auto tokenFuture = KWaylandExtras::xdgActivationToken(window, {});
+     tokenFuture.then(source, [source, pos](const QString &token) {
+         source->provideXdgActivationToken(token);
+         source->secondaryActivate(pos.x(), pos.y());
+     });
++#else
++    source->secondaryActivate(pos.x(), pos.y());
++#endif
+ }
+ 
+ void SystemTray::openContextMenu(const QString &service, QPoint pos, QQuickItem *statusNotifierIcon)
+@@ -643,11 +653,15 @@ void SystemTray::openContextMenu(const QString &service, QPoint pos, QQuickItem
+         return;
+     }
+ 
++#ifndef Q_OS_WIN
+     auto tokenFuture = KWaylandExtras::xdgActivationToken(window, {});
+     tokenFuture.then(source, [source, pos](const QString &token) {
+         source->provideXdgActivationToken(token);
+         source->contextMenu(pos.x(), pos.y());
+     });
++#else
++    source->contextMenu(pos.x(), pos.y());
++#endif
+ }
+ 
+ void SystemTray::scroll(const QString &service, int delta, const QString &direction)
+diff --git a/applets/systemtray/systemtraymodel.cpp b/applets/systemtray/systemtraymodel.cpp
+--- a/applets/systemtray/systemtraymodel.cpp
++++ b/applets/systemtray/systemtraymodel.cpp
+@@ -20,7 +20,9 @@
+ #include <KLocalizedString>
+ #include <KNotificationJobUiDelegate>
+ #include <KService>
++#ifndef Q_OS_WIN
+ #include <KWaylandExtras>
++#endif
+ #include <Plasma/Applet>
+ #include <PlasmaQuick/AppletQuickItem>
+ 
+@@ -531,6 +533,7 @@ void BackgroundAppsModel::openBackgroundApp(const QModelIndex &index)
+         return;
+     }
+     const auto &app = m_backgroundApps.at(index.row());
++#ifndef Q_OS_WIN
+     auto tokenFuture = KWaylandExtras::xdgActivationToken(nullptr, app.appId);
+     tokenFuture.then([service = app.service](const QString &token) {
+         auto job = new KIO::ApplicationLauncherJob(service);
+@@ -539,6 +542,15 @@ void BackgroundAppsModel::openBackgroundApp(const QModelIndex &index)
+         job->setUiDelegate(delegate);
+         job->start();
+     });
++#else
++    {
++        auto service = app.service;
++        auto job = new KIO::ApplicationLauncherJob(service);
++        auto delegate = new KNotificationJobUiDelegate(KJobUiDelegate::AutoErrorHandlingEnabled);
++        job->setUiDelegate(delegate);
++        job->start();
++    }
++#endif
+ 
+     // Remove it from the model immediately - if things didnt work it will appear on the next update
+     // Better the errorneous case is a bit weird than the normal one
+diff --git a/devicenotifications/CMakeLists.txt b/devicenotifications/CMakeLists.txt
+--- a/devicenotifications/CMakeLists.txt
++++ b/devicenotifications/CMakeLists.txt
+@@ -2,16 +2,17 @@ add_definitions(-DTRANSLATION_DOMAIN=\"kded_devicenotifications\")
+ 
+ kcoreaddons_add_plugin(devicenotifications SOURCES devicenotifications.cpp devicenotifications.h INSTALL_NAMESPACE "kf6/kded")
+ 
++if (WITH_WAYLAND)
+ qt6_generate_wayland_protocol_client_sources(devicenotifications
+     FILES ${PLASMA_WAYLAND_PROTOCOLS_DIR}/kde-output-device-v2.xml PRIVATE_CODE
+ )
++endif()
++
+ 
+ target_link_libraries(devicenotifications
+-    Qt6::WaylandClient
+     KF6::DBusAddons
+     KF6::CoreAddons
+     KF6::I18n
+     KF6::Notifications
+     UDev::UDev
+-    Wayland::Client
+ )
+diff --git a/kcms/krdb/krdb.h b/kcms/krdb/krdb.h
+--- a/kcms/krdb/krdb.h
++++ b/kcms/krdb/krdb.h
+@@ -1,12 +1,14 @@
+ /*
+     SPDX-FileCopyrightText: 2001 Waldo Bastian <bastian@kde.org>
++    SPDX-FileCopyrightText: 2026 Plasma Windows project
+ 
+     SPDX-License-Identifier: GPL-2.0-only
+ */
+ 
+ #pragma once
+ 
+-#include "krdb_export.h"
++// Windows stub: krdb manages X11 Xresources, which do not exist on Windows.
++// The API is kept as inline no-ops so that consumers (libklookandfeel) compile.
+ 
+ enum KRdbAction {
+     KRdbExportColors = 0x0001, // Export colors to non-(KDE/Qt) apps
+@@ -16,6 +18,12 @@ enum KRdbAction {
+     KRdbExportGtkTheme = 0x0010, // Export KDE's widget style to Gtk if possible
+ };
+ 
+-void KRDB_EXPORT runRdb(unsigned int flags);
++inline void runRdb(unsigned int flags)
++{
++    (void)flags;
++}
+ 
+-int KRDB_EXPORT xftDpi();
++inline int xftDpi()
++{
++    return 0;
++}
+diff --git a/wallpapers/image/wallpaperfileitemactionplugin/CMakeLists.txt b/wallpapers/image/wallpaperfileitemactionplugin/CMakeLists.txt
+--- a/wallpapers/image/wallpaperfileitemactionplugin/CMakeLists.txt
++++ b/wallpapers/image/wallpaperfileitemactionplugin/CMakeLists.txt
+@@ -5,6 +5,7 @@ kcoreaddons_add_plugin(wallpaperfileitemaction
+     INSTALL_NAMESPACE "kf6/kfileitemaction")
+ 
+ target_link_libraries(wallpaperfileitemaction
++    Qt::DBus
+     KF6::KIOWidgets
+     KF6::I18n
+ )
+diff --git a/krunner/CMakeLists.txt b/krunner/CMakeLists.txt
+--- a/krunner/CMakeLists.txt
++++ b/krunner/CMakeLists.txt
+@@ -28,7 +28,6 @@ target_link_libraries(krunner PRIVATE
+     KF6::Crash
+     KF6::Runner
+     PW::KWorkspace
+-    LayerShellQt::Interface
+ )
+ target_compile_definitions(krunner PRIVATE -DPROJECT_VERSION="${PROJECT_VERSION}")
+ 
+diff --git a/ksplash/ksplashqml/CMakeLists.txt b/ksplash/ksplashqml/CMakeLists.txt
+--- a/ksplash/ksplashqml/CMakeLists.txt
++++ b/ksplash/ksplashqml/CMakeLists.txt
+@@ -14,7 +14,6 @@ target_link_libraries(ksplashqml
+     KF6::WindowSystem
+     Plasma::PlasmaQuick
+     PW::KWorkspace
+-    LayerShellQt::Interface
+    )
+ 
+ ecm_qt_declare_logging_category(ksplashqml
+diff --git a/libkworkspace/CMakeLists.txt b/libkworkspace/CMakeLists.txt
+--- a/libkworkspace/CMakeLists.txt
++++ b/libkworkspace/CMakeLists.txt
+@@ -44,7 +44,6 @@ target_link_libraries(kworkspace
+         KF6::CoreAddons
+     PRIVATE
+         Qt::DBus
+-        Qt::WaylandClient
+         KF6::I18n
+         KF6::WindowSystem
+         KF6::ConfigCore
+@@ -76,11 +75,14 @@ ecm_qt_declare_logging_category(kworkspace
+ if (Qt6_VERSION VERSION_GREATER_EQUAL "6.8.0")
+     set(private_code_option  "PRIVATE_CODE")
+ endif()
++if (WITH_WAYLAND)
+ qt6_generate_wayland_protocol_client_sources(kworkspace
+     ${private_code_option}
+     FILES
+         ${PLASMA_WAYLAND_PROTOCOLS_DIR}/kde-output-order-v1.xml
+ )
++endif()
++
+ 
+ install(TARGETS kworkspace EXPORT libkworkspaceLibraryTargets ${KDE_INSTALL_TARGETS_DEFAULT_ARGS} )
+ 
+diff --git a/libkworkspace/kdisplaymanager.cpp b/libkworkspace/kdisplaymanager.cpp
+--- a/libkworkspace/kdisplaymanager.cpp
++++ b/libkworkspace/kdisplaymanager.cpp
+@@ -1,3 +1,78 @@
++/*
++    SPDX-FileCopyrightText: 2004 Oswald Buddenhagen <ossi@kde.org>
++    SPDX-FileCopyrightText: 2026 Plasma Windows project
++
++    SPDX-License-Identifier: LGPL-2.0-or-later
++*/
++
++#include "kdisplaymanager.h"
++
++#ifdef Q_OS_WIN
++// Windows stub: KDisplayManager is X11/session-manager specific.
++KDisplayManager::KDisplayManager() : d(nullptr)
++{
++}
++KDisplayManager::~KDisplayManager()
++{
++}
++bool KDisplayManager::canShutdown()
++{
++    return false;
++}
++void KDisplayManager::shutdown(KWorkSpace::ShutdownType, KWorkSpace::ShutdownMode, const QString &)
++{
++}
++bool KDisplayManager::isSwitchable()
++{
++    return false;
++}
++int KDisplayManager::numReserve()
++{
++    return 0;
++}
++void KDisplayManager::startReserve()
++{
++}
++bool KDisplayManager::localSessions(SessList &list)
++{
++    Q_UNUSED(list);
++    return false;
++}
++bool KDisplayManager::switchVT(int)
++{
++    return false;
++}
++void KDisplayManager::lockSwitchVT(int)
++{
++}
++bool KDisplayManager::bootOptions(QStringList &opts, int &dflt, int &curr)
++{
++    Q_UNUSED(opts);
++    dflt = 0;
++    curr = 0;
++    return false;
++}
++QString KDisplayManager::sess2Str(const SessEnt &se)
++{
++    return se.display;
++}
++void KDisplayManager::sess2Str2(const SessEnt &se, QString &user, QString &loc)
++{
++    user = se.user;
++    loc = se.from;
++}
++bool KDisplayManager::exec(const char *, QByteArray &)
++{
++    return false;
++}
++bool KDisplayManager::exec(const char *)
++{
++    return false;
++}
++void KDisplayManager::GDMAuthenticate()
++{
++}
++#else
+ /*
+     SPDX-FileCopyrightText: 2004 Oswald Buddenhagen <ossi@kde.org>
+ 
+@@ -887,3 +962,5 @@ void KDisplayManager::GDMAuthenticate()
+     fclose(fp);
+ #endif // HAVE_X11
+ }
++
++#endif // Q_OS_WIN
+diff --git a/libkworkspace/outputorderwatcher.cpp b/libkworkspace/outputorderwatcher.cpp
+--- a/libkworkspace/outputorderwatcher.cpp
++++ b/libkworkspace/outputorderwatcher.cpp
+@@ -20,9 +20,11 @@
+ 
+ #include <KWindowSystem>
+ 
++#ifndef Q_OS_WIN
+ #include "qwayland-kde-output-order-v1.h"
+ #include <QtWaylandClient/QWaylandClientExtension>
+ #include <QtWaylandClient/QtWaylandClientVersion>
++#endif
+ 
+ #if HAVE_X11
+ #include <X11/Xlib.h>
+@@ -53,6 +55,7 @@ private:
+ };
+ #endif // HAVE_X11
+ 
++#ifndef Q_OS_WIN
+ class WaylandOutputOrderWatcher : public OutputOrderWatcher
+ {
+     Q_OBJECT
+@@ -108,6 +111,7 @@ private:
+     QStringList m_outputOrder;
+     bool m_done = true;
+ };
++#endif // Q_OS_WIN
+ 
+ OutputOrderWatcher::OutputOrderWatcher(QObject *parent)
+     : QObject(parent)
+@@ -135,9 +139,11 @@ OutputOrderWatcher *OutputOrderWatcher::instance(QObject *parent)
+         return new X11OutputOrderWatcher(parent);
+     } else
+ #endif
++#ifndef Q_OS_WIN
+         if (KWindowSystem::isPlatformWayland()) {
+         return new WaylandOutputOrderWatcher(parent);
+     }
++#endif
+     // return default impl that does something at least
+     return new OutputOrderWatcher(parent);
+ }
+@@ -367,6 +373,7 @@ void X11OutputOrderWatcher::roundtrip() const
+ }
+ #endif
+ 
++#ifndef Q_OS_WIN
+ WaylandOutputOrderWatcher::WaylandOutputOrderWatcher(QObject *parent)
+     : OutputOrderWatcher(parent)
+ {
+@@ -429,6 +436,8 @@ void WaylandOutputOrderWatcher::refresh()
+     }
+ }
+ 
++#endif // Q_OS_WIN
++
+ #include "outputorderwatcher.moc"
+ 
+ #include "moc_outputorderwatcher.cpp"
+diff --git a/libklookandfeel/CMakeLists.txt b/libklookandfeel/CMakeLists.txt
+--- a/libklookandfeel/CMakeLists.txt
++++ b/libklookandfeel/CMakeLists.txt
+@@ -53,7 +53,6 @@ target_link_libraries(klookandfeel
+         KF6::I18n
+         KF6::IconThemes
+         KF6::KIOGui
+-        krdb
+ )
+ 
+ if (HAVE_X11)
+@@ -65,6 +64,8 @@ if (HAVE_X11)
+ endif ()
+ 
+ target_include_directories(klookandfeel
++    PRIVATE
++        ../kcms/krdb
+     PUBLIC
+         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+     INTERFACE
+diff --git a/libnotificationmanager/CMakeLists.txt b/libnotificationmanager/CMakeLists.txt
+--- a/libnotificationmanager/CMakeLists.txt
++++ b/libnotificationmanager/CMakeLists.txt
+@@ -102,8 +102,7 @@ target_link_libraries(notificationmanager
+         PW::LibTaskManager
+         KF6::Screen
+         KF6::Service
+-        Canberra::Canberra
+-)
++    )
+ if (TARGET PkgConfig::Flatpak)
+     target_link_libraries(notificationmanager PRIVATE PkgConfig::Flatpak)
+ endif()
+diff --git a/libnotificationmanager/abstractnotificationsmodel.cpp b/libnotificationmanager/abstractnotificationsmodel.cpp
+--- a/libnotificationmanager/abstractnotificationsmodel.cpp
++++ b/libnotificationmanager/abstractnotificationsmodel.cpp
+@@ -20,7 +20,9 @@
+ #include <KIO/CommandLauncherJob>
+ #include <KLocalizedString>
+ #include <KShell>
++#ifndef Q_OS_WIN
+ #include <KWaylandExtras>
++#endif
+ #include <KWindowSystem>
+ 
+ #include <algorithm>
+@@ -602,7 +604,11 @@ void AbstractNotificationsModel::configure(const QString &desktopEntry, const QS
+     };
+ 
+     if (KWindowSystem::isPlatformWayland()) {
++#ifndef Q_OS_WIN
+         KWaylandExtras::xdgActivationToken(window(), systemSettings).then(job, startWithToken);
++#else
++        startWithToken({});
++#endif
+     } else {
+         startWithToken({});
+     }
+diff --git a/libnotificationmanager/mirroredscreenstracker_p.h b/libnotificationmanager/mirroredscreenstracker_p.h
+--- a/libnotificationmanager/mirroredscreenstracker_p.h
++++ b/libnotificationmanager/mirroredscreenstracker_p.h
+@@ -9,7 +9,9 @@
+ #include <QObject>
+ #include <memory>
+ 
++#ifndef Q_OS_WIN
+ #include <KScreen/Config>
++#endif
+ 
+ namespace NotificationManager
+ {
+diff --git a/libnotificationmanager/notifications.cpp b/libnotificationmanager/notifications.cpp
+--- a/libnotificationmanager/notifications.cpp
++++ b/libnotificationmanager/notifications.cpp
+@@ -12,7 +12,9 @@
+ #include <QMetaEnum>
+ #include <QPointer>
+ 
++#ifdef HAVE_CANBERRA
+ #include <canberra.h>
++#endif
+ 
+ #include <KConfig>
+ #include <KConfigGroup>
+@@ -109,7 +111,9 @@ public:
+     NotificationGroupingProxyModel *groupingModel = nullptr;
+     NotificationGroupCollapsingProxyModel *groupCollapsingModel = nullptr;
+     KDescendantsProxyModel *flattenModel = nullptr;
++#ifdef HAVE_CANBERRA
+     ca_context *canberraContext = nullptr;
++#endif
+     LimitedRowCountProxyModel *limiterModel = nullptr;
+ 
+     QPointer<KNotification> inhibitionSummaryNotification;
+@@ -1054,6 +1058,7 @@ void Notifications::playSoundHint(const QModelIndex &idx) const
+         return;
+     }
+ 
++#ifdef HAVE_CANBERRA
+     if (!d->canberraContext) {
+         const int ret = ca_context_create(&d->canberraContext);
+         if (ret != CA_SUCCESS) {
+@@ -1064,7 +1069,9 @@ void Notifications::playSoundHint(const QModelIndex &idx) const
+             return;
+         }
+     }
++#endif // HAVE_CANBERRA
+ 
++#ifdef HAVE_CANBERRA
+     ca_proplist *props = nullptr;
+     ca_proplist_create(&props);
+ 
+@@ -1101,5 +1108,9 @@ void Notifications::playSoundHint(const QModelIndex &idx) const
+         return;
+     }
+ }
++#else
++}
++#endif // HAVE_CANBERRA
++
+ 
+ #include "moc_notifications.cpp"
+diff --git a/libnotificationmanager/portal_p.cpp b/libnotificationmanager/portal_p.cpp
+--- a/libnotificationmanager/portal_p.cpp
++++ b/libnotificationmanager/portal_p.cpp
+@@ -17,8 +17,10 @@
+ 
+ #include <QDBusConnection>
+ 
++#ifndef Q_OS_WIN
+ #include <KStartupInfo>
+ #include <KWaylandExtras>
++#endif
+ #include <KWindowSystem>
+ 
+ using namespace Qt::StringLiterals;
+@@ -130,17 +132,25 @@ void Portal::invokeAction(uint notificationId, const QString &actionId, const QV
+     };
+ 
+     if (KWindowSystem::isPlatformWayland()) {
++#ifndef Q_OS_WIN
+         KWaylandExtras::xdgActivationToken(window, appId).then(this, [activateWithPlatformData](const QString &token) {
+             activateWithPlatformData({
+                 {u"activation-token"_s, token},
+             });
+         });
++#else
++        activateWithPlatformData({});
++#endif
+     } else {
++#ifndef Q_OS_WIN
+         KStartupInfoId startupId;
+         startupId.initId();
+         activateWithPlatformData({
+             {u"desktop-startup-id"_s, QString::fromUtf8(startupId.id())},
+         });
++#else
++        activateWithPlatformData({});
++#endif
+     }
+ }
+ 
+diff --git a/libnotificationmanager/server.cpp b/libnotificationmanager/server.cpp
+--- a/libnotificationmanager/server.cpp
++++ b/libnotificationmanager/server.cpp
+@@ -13,8 +13,10 @@
+ 
+ #include "debug.h"
+ 
++#ifndef Q_OS_WIN
+ #include <KStartupInfo>
+ #include <KWaylandExtras>
++#endif
+ #include <KWindowSystem>
+ #include <QDebug>
+ 
+@@ -77,6 +79,7 @@ void Server::invokeAction(uint notificationId,
+                           QWindow *window)
+ {
+     if (KWindowSystem::isPlatformWayland()) {
++#ifndef Q_OS_WIN
+         auto tokenFuture = KWaylandExtras::xdgActivationToken(window, xdgActivationAppId);
+         tokenFuture.then(this, [this, actionName, notificationId, behavior](const QString &token) {
+             Q_EMIT d->ActivationToken(notificationId, token);
+@@ -85,12 +88,13 @@ void Server::invokeAction(uint notificationId,
+                 Q_EMIT d->CloseNotification(notificationId);
+             }
+         });
++#endif
+     } else {
++#ifndef Q_OS_WIN
+         KStartupInfoId startupId;
+         startupId.initId();
+-
+         Q_EMIT d->ActivationToken(notificationId, QString::fromUtf8(startupId.id()));
+-
++#endif
+         Q_EMIT d->ActionInvoked(notificationId, actionName);
+         if (behavior & Notifications::Close) {
+             Q_EMIT d->CloseNotification(notificationId);
+diff --git a/libnotificationmanager/server_p.cpp b/libnotificationmanager/server_p.cpp
+--- a/libnotificationmanager/server_p.cpp
++++ b/libnotificationmanager/server_p.cpp
+@@ -308,7 +308,7 @@ void ServerPrivate::onBroadcastNotification(const QMap<QString, QVariant> &prope
+ {
+     qCDebug(NOTIFICATIONMANAGER) << "Received broadcast notification";
+ 
+-    const auto currentUserId = KUserId::currentEffectiveUserId().nativeId();
++    const auto currentUserId = KUserId::currentEffectiveUserId();
+ 
+     // a QVariantList with ints arrives as QDBusArgument here, using a QStringList for simplicity
+     const QStringList &userIds = properties.value(QStringLiteral("uids")).toStringList();
+@@ -316,7 +316,7 @@ void ServerPrivate::onBroadcastNotification(const QMap<QString, QVariant> &prope
+         auto it = std::find_if(userIds.constBegin(), userIds.constEnd(), [currentUserId](const QVariant &id) {
+             bool ok;
+             auto uid = id.toString().toLongLong(&ok);
+-            return ok && uid == currentUserId;
++            return ok && QString::number(uid) == currentUserId.toString();
+         });
+ 
+         if (it == userIds.constEnd()) {
+diff --git a/libnotificationmanager/utils.cpp b/libnotificationmanager/utils.cpp
+--- a/libnotificationmanager/utils.cpp
++++ b/libnotificationmanager/utils.cpp
+@@ -85,11 +85,12 @@ QString Utils::desktopEntryFromPid(uint pid)
+     if (environFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+         constexpr QByteArrayView bamfDesktopFileHint("BAMF_DESKTOP_FILE_HINT");
+ 
+-        const QByteArray environ = environFile.readAll();
+-#if (defined(__GNUC__) && __GNUC__ >= 12) || !defined(__GNUC__)
+-        for (const QByteArrayView line : QByteArrayView(environ) | std::views::split('\0')) {
++        const QByteArray environData = environFile.readAll();
++#if defined(__GNUC__) && __GNUC__ >= 12
++        for (const QByteArrayView line : QByteArrayView(environData) | std::views::split('\0')) {
+ #else
+-        for (const QByteArrayView line : environ.split('\0')) {
++        for (const QByteArray &part : environData.split('\0')) {
++        const QByteArrayView line(part);
+ #endif
+             const auto equalsIdx = line.indexOf('=');
+             if (equalsIdx == -1) {
+diff --git a/libclock/alignedtimer.cpp b/libclock/alignedtimer.cpp
+--- a/libclock/alignedtimer.cpp
++++ b/libclock/alignedtimer.cpp
+@@ -1,8 +1,54 @@
+-/*
+-    SPDX-FileCopyrightText: 2023 David Edmundson <davidedmundson@kde.org>
+-    SPDX-License-Identifier: LGPL-2.0-or-later
+-*/
++#if defined(Q_OS_WIN) || defined(_WIN32)
++#include "alignedtimer.h"
++
++#include <QDateTime>
++#include <QTimer>
++
++// Windows: use a QTimer aligned to the interval boundary instead of timerfd.
++
++std::shared_ptr<AlignedTimer> AlignedTimer::getMinuteTimer()
++{
++    static std::weak_ptr<AlignedTimer> s_minuteTimer;
++
++    std::shared_ptr<AlignedTimer> timer = s_minuteTimer.lock();
++    if (!timer) {
++        timer = std::make_shared<AlignedTimer>(std::chrono::minutes(1));
++        s_minuteTimer = timer;
++    }
++    return timer;
++}
++
++std::shared_ptr<AlignedTimer> AlignedTimer::getSecondTimer()
++{
++    static std::weak_ptr<AlignedTimer> s_secondTimer;
+ 
++    std::shared_ptr<AlignedTimer> timer = s_secondTimer.lock();
++    if (!timer) {
++        timer = std::make_shared<AlignedTimer>(std::chrono::seconds(1));
++        s_secondTimer = timer;
++    }
++    return timer;
++}
++
++AlignedTimer::AlignedTimer(std::chrono::seconds interval)
++    : m_interval(interval)
++    , m_timer(new QTimer(this))
++{
++    m_timer->setTimerType(Qt::VeryCoarseTimer);
++    connect(m_timer, &QTimer::timeout, this, &AlignedTimer::timeout);
++    initTimer();
++}
++
++AlignedTimer::~AlignedTimer() = default;
++
++void AlignedTimer::initTimer()
++{
++    const auto now = QDateTime::currentMSecsSinceEpoch();
++    const qint64 intervalMs = static_cast<qint64>(m_interval.count()) * 1000;
++    const qint64 next = (now / intervalMs + 1) * intervalMs;
++    m_timer->start(static_cast<int>(next - now));
++}
++#else
+ #include "alignedtimer.h"
+ 
+ #include <fcntl.h>
+@@ -88,3 +134,5 @@ void AlignedTimer::initTimer()
+         return;
+     }
+ }
++
++#endif // Q_OS_WIN
+diff --git a/libclock/alignedtimer.h b/libclock/alignedtimer.h
+--- a/libclock/alignedtimer.h
++++ b/libclock/alignedtimer.h
+@@ -27,7 +27,7 @@ Q_SIGNALS:
+ private:
+     void initTimer();
+     std::chrono::seconds m_interval;
+-#if defined(Q_OS_OPENBSD)
++#if defined(Q_OS_OPENBSD) || defined(Q_OS_WIN)
+      QTimer *m_timer = nullptr;
+ #else
+      int m_timerFd = -1;
+diff --git a/applets/digital-clock/plugin/CMakeLists.txt b/applets/digital-clock/plugin/CMakeLists.txt
+--- a/applets/digital-clock/plugin/CMakeLists.txt
++++ b/applets/digital-clock/plugin/CMakeLists.txt
+@@ -27,6 +27,7 @@ target_sources(digitalclockplugin PRIVATE
+ target_link_libraries(digitalclockplugin
+     PRIVATE
+         Qt::Core
++        Qt::DBus
+         Qt::Qml
+         Qt::Widgets # for QAction...
+         KF6::CoreAddons
+diff --git a/components/dbus/dbustype.h b/components/dbus/dbustype.h
+--- a/components/dbus/dbustype.h
++++ b/components/dbus/dbustype.h
+@@ -43,6 +43,10 @@
+         {                                                                                                                                                      \
+             return QVariant::fromValue(*this);                                                                                                                 \
+         }                                                                                                                                                      \
++        friend bool operator==(const CLASSNAME &a, const CLASSNAME &b)                                                                                        \
++        {                                                                                                                                                      \
++            return a.value == b.value;                                                                                                                         \
++        }                                                                                                                                                      \
+         STORETYPE value;                                                                                                                                       \
+         constexpr static const char *signature = DBUSSIGNATURE;                                                                                                \
+     };
+@@ -89,6 +93,11 @@ public:
+     {
+         return value.variant().toString();
+     }
++    friend bool operator==(const VARIANT &a, const VARIANT &b)
++    {
++        return a.value == b.value;
++    }
++
+     QDBusVariant value;
+     constexpr static const char *signature = "v";
+ };
+diff --git a/libtaskmanager/CMakeLists.txt b/libtaskmanager/CMakeLists.txt
+--- a/libtaskmanager/CMakeLists.txt
++++ b/libtaskmanager/CMakeLists.txt
+@@ -17,11 +17,7 @@ set(taskmanager_LIB_SRCS
+     tasksmodel.cpp
+     tasktools.cpp
+     virtualdesktopinfo.cpp
+-    waylandstartuptasksmodel.cpp
+-    waylandtasksmodel.cpp
+     windowtasksmodel.cpp
+-    screencasting.cpp screencasting.h
+-    screencastingrequest.cpp screencastingrequest.h
+ )
+ 
+ if (HAVE_X11)
+@@ -33,6 +29,14 @@ if (HAVE_X11)
+     )
+ endif()
+ 
++if (WITH_WAYLAND)
++    set(taskmanager_LIB_SRCS
++        ${taskmanager_LIB_SRCS}
++        screencasting.cpp screencasting.h
++        screencastingrequest.cpp screencastingrequest.h
++    )
++endif()
++
+ add_library(taskmanager ${taskmanager_LIB_SRCS})
+ add_library(PW::LibTaskManager ALIAS taskmanager)
+ 
+@@ -46,12 +50,15 @@ ecm_add_qml_module(taskmanager
+ if (Qt6_VERSION VERSION_GREATER_EQUAL "6.8.0")
+     set(private_code_option  "PRIVATE_CODE")
+ endif()
++if (WITH_WAYLAND)
+ qt6_generate_wayland_protocol_client_sources(taskmanager
+     ${private_code_option}
+     FILES ${PLASMA_WAYLAND_PROTOCOLS_DIR}/org-kde-plasma-virtual-desktop.xml
+     FILES ${PLASMA_WAYLAND_PROTOCOLS_DIR}/plasma-window-management.xml
+     FILES ${PLASMA_WAYLAND_PROTOCOLS_DIR}/zkde-screencast-unstable-v1.xml
+ )
++endif()
++
+ 
+ generate_export_header(taskmanager)
+ 
+@@ -71,7 +78,6 @@ target_link_libraries(taskmanager
+         Qt::Concurrent
+         Qt::DBus
+         Qt::GuiPrivate
+-        Qt::WaylandClient
+         Plasma::Activities
+         KF6::ConfigCore
+         KF6::I18n
+@@ -120,8 +126,6 @@ install(FILES
+     tasksmodel.h
+     tasktools.h
+     virtualdesktopinfo.h
+-    waylandstartuptasksmodel.h
+-    waylandtasksmodel.h
+     windowtasksmodel.h
+     ${CMAKE_CURRENT_BINARY_DIR}/taskmanager_export.h
+     DESTINATION ${KDE_INSTALL_INCLUDEDIR}/taskmanager COMPONENT Devel
+diff --git a/libtaskmanager/tasktools.cpp b/libtaskmanager/tasktools.cpp
+--- a/libtaskmanager/tasktools.cpp
++++ b/libtaskmanager/tasktools.cpp
+@@ -356,11 +356,12 @@ KService::List servicesFromPid(quint32 pid)
+     if (environFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+         constexpr QByteArrayView bamfDesktopFileHint{"BAMF_DESKTOP_FILE_HINT"};
+         constexpr QByteArrayView appDir{"APPDIR"};
+-        const QByteArray environ = environFile.readAll();
+-#if (defined(__GNUC__) && __GNUC__ >= 12) || !defined(__GNUC__)
+-        for (const QByteArrayView line : QByteArrayView(environ) | std::views::split('\0')) {
++        const QByteArray environData = environFile.readAll();
++#if defined(__GNUC__) && __GNUC__ >= 12
++        for (const QByteArrayView line : QByteArrayView(environData) | std::views::split('\0')) {
+ #else
+-        for (const QByteArrayView line : environ.split('\0')) {
++        for (const QByteArray &part : environData.split('\0')) {
++        const QByteArrayView line(part);
+ #endif
+             const auto equalsIdx = line.indexOf('=');
+             if (equalsIdx == -1) {
+diff --git a/libtaskmanager/virtualdesktopinfo.cpp b/libtaskmanager/virtualdesktopinfo.cpp
+--- a/libtaskmanager/virtualdesktopinfo.cpp
++++ b/libtaskmanager/virtualdesktopinfo.cpp
+@@ -9,9 +9,11 @@
+ 
+ #include <KLocalizedString>
+ #include <KWindowSystem>
++#ifndef Q_OS_WIN
+ #include <KX11Extras>
+ 
+ #include <qwayland-org-kde-plasma-virtual-desktop.h>
++#endif
+ 
+ #include <QDBusConnection>
+ #include <QDBusMessage>
+@@ -19,7 +21,9 @@
+ #include <QDBusPendingReply>
+ #include <QGuiApplication>
+ #include <QScreen>
++#ifndef Q_OS_WIN
+ #include <QWaylandClientExtension>
++#endif
+ #include <algorithm>
+ 
+ #include <config-X11.h>
+@@ -28,6 +32,7 @@
+ #include <netwm.h>
+ #endif // HAVE_X11
+ 
++#ifndef Q_OS_WIN
+ namespace X11Info
+ {
+ [[nodiscard]] inline auto connection()
+@@ -35,6 +40,7 @@ namespace X11Info
+     return qGuiApp->nativeInterface<QNativeInterface::QX11Application>()->connection();
+ }
+ }
++#endif
+ 
+ namespace TaskManager
+ {
+@@ -79,6 +85,72 @@ protected Q_SLOTS:
+     void navigationWrappingAroundChanged(bool newVal);
+ };
+ 
++#ifdef Q_OS_WIN
++class Q_DECL_HIDDEN VirtualDesktopInfo::WindowsPrivate : public VirtualDesktopInfo::Private
++{
++public:
++    WindowsPrivate()
++        : VirtualDesktopInfo::Private()
++    {
++    }
++
++    void init() override
++    {
++    }
++
++    QVariant currentDesktop() const override
++    {
++        return 1;
++    }
++
++    QVariant currentDesktopByScreenName(const QString &) const override
++    {
++        return 1;
++    }
++
++    int numberOfDesktops() const override
++    {
++        return 1;
++    }
++
++    QVariantList desktopIds() const override
++    {
++        return {1};
++    }
++
++    QStringList desktopNames() const override
++    {
++        return {QStringLiteral("Desktop 1")};
++    }
++
++    quint32 position(const QVariant &) const override
++    {
++        return 0;
++    }
++
++    int desktopLayoutRows() const override
++    {
++        return 1;
++    }
++
++    void requestActivate(const QVariant &) override
++    {
++    }
++
++    void requestActivateOnScreen(const QVariant &, const QString &) override
++    {
++    }
++
++    void requestCreateDesktop(quint32) override
++    {
++    }
++
++    void requestRemoveDesktop(quint32) override
++    {
++    }
++};
++#endif // Q_OS_WIN
++
+ VirtualDesktopInfo::Private::Private()
+ {
+     // Connect to navigationWrappingAroundChanged signal
+@@ -112,6 +184,7 @@ VirtualDesktopInfo::Private::Private()
+     });
+ }
+ 
++
+ void VirtualDesktopInfo::Private::navigationWrappingAroundChanged(bool newVal)
+ {
+     if (navigationWrappingAround == newVal) {
+@@ -266,6 +339,7 @@ void VirtualDesktopInfo::XWindowPrivate::requestRemoveDesktop(quint32 position)
+ }
+ #endif // HAVE_X11
+ 
++#ifndef Q_OS_WIN
+ class PlasmaVirtualDesktop : public QObject, public QtWayland::org_kde_plasma_virtual_desktop
+ {
+     Q_OBJECT
+@@ -614,6 +688,7 @@ void VirtualDesktopInfo::WaylandPrivate::requestRemoveDesktop(quint32 position)
+ 
+     virtualDesktopManagement->request_remove_virtual_desktop(virtualDesktops.at(position)->id);
+ }
++#endif // Q_OS_WIN
+ 
+ VirtualDesktopInfo::Private *VirtualDesktopInfo::d = nullptr;
+ 
+@@ -627,7 +702,11 @@ VirtualDesktopInfo::VirtualDesktopInfo(QObject *parent)
+         } else
+ #endif // HAVE_X11
+         {
++#ifndef Q_OS_WIN
+             d = new VirtualDesktopInfo::WaylandPrivate;
++#else
++            d = new VirtualDesktopInfo::WindowsPrivate;
++#endif
+         }
+     } else {
+         ++d->refCount;
+diff --git a/libtaskmanager/virtualdesktopinfo.h b/libtaskmanager/virtualdesktopinfo.h
+--- a/libtaskmanager/virtualdesktopinfo.h
++++ b/libtaskmanager/virtualdesktopinfo.h
+@@ -161,6 +161,7 @@ private:
+     class Private;
+     class XWindowPrivate;
+     class WaylandPrivate;
++    class WindowsPrivate;
+     static Private *d;
+ };
+ 
+diff --git a/libtaskmanager/startuptasksmodel.cpp b/libtaskmanager/startuptasksmodel.cpp
+--- a/libtaskmanager/startuptasksmodel.cpp
++++ b/libtaskmanager/startuptasksmodel.cpp
+@@ -9,7 +9,9 @@
+ 
+ #include <config-X11.h>
+ 
++#ifndef Q_OS_WIN
+ #include "waylandstartuptasksmodel.h"
++#endif
+ #if HAVE_X11
+ #include "xstartuptasksmodel.h"
+ #endif
+@@ -53,9 +55,11 @@ StartupTasksModel::Private::~Private()
+ 
+ void StartupTasksModel::Private::initSourceTasksModel()
+ {
++#ifndef Q_OS_WIN
+     if (!sourceTasksModel && KWindowSystem::isPlatformWayland()) {
+         sourceTasksModel = new WaylandStartupTasksModel();
+     }
++#endif
+ 
+ #if HAVE_X11
+     if (!sourceTasksModel && KWindowSystem::isPlatformX11()) {
+diff --git a/libtaskmanager/windowtasksmodel.cpp b/libtaskmanager/windowtasksmodel.cpp
+--- a/libtaskmanager/windowtasksmodel.cpp
++++ b/libtaskmanager/windowtasksmodel.cpp
+@@ -5,10 +5,13 @@
+ */
+ 
+ #include "windowtasksmodel.h"
++#include "abstracttasksmodel.h"
+ 
+ #include <config-X11.h>
+ 
++#ifndef Q_OS_WIN
+ #include "waylandtasksmodel.h"
++#endif
+ #if HAVE_X11
+ #include "xwindowtasksmodel.h"
+ #endif
+@@ -52,9 +55,11 @@ WindowTasksModel::Private::~Private()
+ 
+ void WindowTasksModel::Private::initSourceTasksModel()
+ {
++#ifndef Q_OS_WIN
+     if (!sourceTasksModel && KWindowSystem::isPlatformWayland()) {
+         sourceTasksModel = new WaylandTasksModel();
+     }
++#endif
+ 
+ #if HAVE_X11
+     if (!sourceTasksModel && KWindowSystem::isPlatformX11()) {
+diff --git a/logout-greeter/CMakeLists.txt b/logout-greeter/CMakeLists.txt
+--- a/logout-greeter/CMakeLists.txt
++++ b/logout-greeter/CMakeLists.txt
+@@ -21,7 +21,6 @@ target_link_libraries(ksmserver-logout-greeter
+     KF6::WindowSystem
+     KF6::ConfigCore
+     X11::X11
+-    LayerShellQt::Interface
+ )
+ 
+ if(PACKAGEKIT_OFFLINE_UPDATES)
+diff --git a/shell/CMakeLists.txt b/shell/CMakeLists.txt
+--- a/shell/CMakeLists.txt
++++ b/shell/CMakeLists.txt
+@@ -90,23 +90,28 @@ target_sources(plasmashell_osd PRIVATE
+ 
+ target_link_libraries(plasmashell_osd PRIVATE
+     Plasma::PlasmaQuick
+-    Wayland::Client
+ )
+ 
+ if (Qt6_VERSION VERSION_GREATER_EQUAL "6.8.0")
+     set(private_code_option  "PRIVATE_CODE")
+ endif()
++if (WITH_WAYLAND)
+ qt6_generate_wayland_protocol_client_sources(plasmashell
+     ${private_code_option}
+     FILES
+         ${PLASMA_WAYLAND_PROTOCOLS_DIR}/kde-screen-edge-v1.xml
+ )
++endif()
++
+ 
++if (WITH_WAYLAND)
+ qt6_generate_wayland_protocol_client_sources(plasmashell_osd
+     ${private_code_option}
+     FILES
+         ${PLASMA_WAYLAND_PROTOCOLS_DIR}/plasma-shell.xml
+ )
++endif()
++
+ 
+ target_sources(plasmashell PRIVATE ${plasma_shell_SRCS})
+ 
+@@ -129,17 +134,13 @@ target_link_libraries(plasmashell PRIVATE
+  KF6::WidgetsAddons
+  KF6::WindowSystem
+  KF6::XmlGui
+- LayerShellQt::Interface
+  Plasma::Activities
+- Plasma::KWaylandClient
+  Plasma::Plasma
+  Plasma::PlasmaQuick
+  PW::KWorkspace
+  Qt::GuiPrivate # qpa/qplatformwindow_p.h
+  Qt::Quick
+  Qt::DBus
+- Qt::WaylandClient
+- Wayland::Client
+ )
+ target_link_libraries(plasmashell PRIVATE KF6::ConfigQml)
+ if (TARGET KF6::UserFeedbackCore)
+diff --git a/shell/panelconfigview.cpp b/shell/panelconfigview.cpp
+--- a/shell/panelconfigview.cpp
++++ b/shell/panelconfigview.cpp
+@@ -33,8 +33,10 @@
+ #include <Plasma/PluginLoader>
+ #include <PlasmaQuick/Dialog>
+ 
++#ifndef Q_OS_WIN
+ #include <KWayland/Client/plasmashell.h>
+ #include <KWayland/Client/surface.h>
++#endif
+ 
+ #include <chrono>
+ 
+diff --git a/shell/autohidescreenedge.cpp b/shell/autohidescreenedge.cpp
+--- a/shell/autohidescreenedge.cpp
++++ b/shell/autohidescreenedge.cpp
+@@ -10,20 +10,25 @@
+ #include "debug.h"
+ #include "panelview.h"
+ 
++#ifndef Q_OS_WIN
+ #include "qwayland-kde-screen-edge-v1.h"
++#endif
+ 
+ #include <KWindowSystem>
+ 
+ #include <QDebug>
+ #include <QWindow>
++#ifndef Q_OS_WIN
+ #include <QtWaylandClient/QWaylandClientExtension>
+ #include <QtWaylandClient/QtWaylandClientVersion>
+ #include <qpa/qplatformwindow_p.h>
++#endif
+ 
+ #if HAVE_X11
+ #include <xcb/xcb.h>
+ #endif
+ 
++#ifndef Q_OS_WIN
+ class WaylandScreenEdgeManagerV1 : public QWaylandClientExtensionTemplate<WaylandScreenEdgeManagerV1>, public QtWayland::kde_screen_edge_manager_v1
+ {
+     Q_OBJECT
+@@ -174,6 +179,8 @@ void WaylandAutoHideScreenEdge::destroy()
+     m_edge.reset();
+ }
+ 
++#endif // Q_OS_WIN
++
+ #if HAVE_X11
+ 
+ class X11AutoHideScreenEdge : public AutoHideScreenEdge
+@@ -265,17 +272,38 @@ AutoHideScreenEdge::AutoHideScreenEdge(PanelView *view)
+ {
+ }
+ 
++#ifdef Q_OS_WIN
++class WindowsAutoHideScreenEdge : public AutoHideScreenEdge
++{
++public:
++    using AutoHideScreenEdge::AutoHideScreenEdge;
++
++    void activate() override
++    {
++    }
++
++    void deactivate() override
++    {
++    }
++};
++#endif
++
+ AutoHideScreenEdge *AutoHideScreenEdge::create(PanelView *view)
+ {
+     if (KWindowSystem::isPlatformWayland()) {
++#ifndef Q_OS_WIN
+         return new WaylandAutoHideScreenEdge(view);
++#endif
+     } else {
+ #if HAVE_X11
+         return new X11AutoHideScreenEdge(view);
++#elif defined(Q_OS_WIN)
++        return new WindowsAutoHideScreenEdge(view);
+ #else
+         Q_UNREACHABLE();
+ #endif
+     }
++    return new WindowsAutoHideScreenEdge(view);
+ }
+ 
+ #include "autohidescreenedge.moc"
+diff --git a/shell/desktopview.cpp b/shell/desktopview.cpp
+--- a/shell/desktopview.cpp
++++ b/shell/desktopview.cpp
+@@ -22,8 +22,12 @@
+ #include <PlasmaQuick/AppletQuickItem>
+ 
+ #include <KAuthorized>
++#ifndef Q_OS_WIN
+ #include <KStartupInfo>
++#endif
++#ifndef Q_OS_WIN
+ #include <KWaylandExtras>
++#endif
+ #include <KX11Extras>
+ #include <klocalizedstring.h>
+ #include <kwindowsystem.h>
+@@ -411,6 +415,7 @@ bool DesktopView::handleKRunnerTextInput(QKeyEvent *e)
+             if (!m_krunnerFuture.isCanceled()) {
+                 m_krunnerFuture.cancel();
+             }
++#ifndef Q_OS_WIN
+             m_krunnerFuture = KWaylandExtras::xdgActivationToken(this, QString());
+             m_krunnerFuture.then(this, [this](const QString &token) {
+                 auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.krunner"),
+@@ -428,6 +433,7 @@ bool DesktopView::handleKRunnerTextInput(QKeyEvent *e)
+                 });
+                 QDBusConnection::sessionBus().asyncCall(message);
+             });
++#endif
+         } else {
+             auto message = QDBusMessage::createMethodCall(QStringLiteral("org.kde.krunner"),
+                                                           QStringLiteral("/org/kde/krunner"),
+@@ -477,8 +483,14 @@ void DesktopView::showConfigurationInterface(Plasma::Applet *applet)
+         } else {
+             m_configView->show();
+             auto window = qobject_cast<QWindow *>(m_configView);
++#if defined(Q_OS_WIN)
++            if (window) {
++#else
+             if (window && qGuiApp->nativeInterface<QNativeInterface::QX11Application>()) {
+-                KStartupInfo::setNewStartupId(window, qgetenv("DESKTOP_STARTUP_ID"));
++#endif
++#ifndef Q_OS_WIN
++            KStartupInfo::setNewStartupId(window, qgetenv("DESKTOP_STARTUP_ID"));
++#endif
+             }
+             m_configView->requestActivate();
+             return;
+@@ -520,8 +532,14 @@ void DesktopView::showConfigurationInterface(Plasma::Applet *applet)
+     });
+ 
+     auto window = qobject_cast<QWindow *>(m_configView);
++#if defined(Q_OS_WIN)
++    if (window) {
++#else
+     if (window && qGuiApp->nativeInterface<QNativeInterface::QX11Application>()) {
+-        KStartupInfo::setNewStartupId(window, qgetenv("DESKTOP_STARTUP_ID"));
++#endif
++#ifndef Q_OS_WIN
++    KStartupInfo::setNewStartupId(window, qgetenv("DESKTOP_STARTUP_ID"));
++#endif
+     }
+     m_configView->requestActivate();
+ }
+diff --git a/shell/main.cpp b/shell/main.cpp
+--- a/shell/main.cpp
++++ b/shell/main.cpp
+@@ -38,8 +38,10 @@
+ 
+ #if __has_include(<malloc.h>)
+ #include <malloc.h>
++#ifndef Q_OS_WIN
+ #include <unistd.h>
+ #endif
++#endif
+ 
+ #if __has_include(<malloc.h>) && defined(__GLIBC__)
+ static void setupMalloc()
+diff --git a/shell/shellcorona.cpp b/shell/shellcorona.cpp
+--- a/shell/shellcorona.cpp
++++ b/shell/shellcorona.cpp
+@@ -44,10 +44,12 @@
+ #include <PlasmaActivities/Consumer>
+ #include <PlasmaActivities/Controller>
+ 
++#ifndef Q_OS_WIN
+ #include <KWayland/Client/connection_thread.h>
+ #include <KWayland/Client/plasmashell.h>
+ #include <KWayland/Client/plasmawindowmanagement.h>
+ #include <KWayland/Client/registry.h>
++#endif
+ #include <qassert.h>
+ 
+ #include "alternativeshelper.h"
+@@ -1366,9 +1368,11 @@ void ShellCorona::savePreviousWindow()
+         m_previousWId = KX11Extras::activeWindow();
+     }
+ #endif
++#ifndef Q_OS_WIN
+     if (m_waylandWindowManagement && !m_previousPlasmaWindow) {
+         m_previousPlasmaWindow = m_waylandWindowManagement->activeWindow();
+     }
++#endif
+ }
+ 
+ void ShellCorona::restorePreviousWindow()
+@@ -1382,9 +1386,11 @@ void ShellCorona::restorePreviousWindow()
+         KX11Extras::forceActiveWindow(m_previousWId);
+     }
+ #endif
++#ifndef Q_OS_WIN
+     if (m_previousPlasmaWindow) {
+         m_previousPlasmaWindow->requestActivate();
+     }
++#endif
+ 
+     clearPreviousWindow();
+ }
+@@ -1394,7 +1400,9 @@ void ShellCorona::clearPreviousWindow()
+ #if HAVE_X11
+     m_previousWId = 0;
+ #endif
++#ifndef Q_OS_WIN
+     m_previousPlasmaWindow = nullptr;
++#endif
+ }
+ 
+ ///// SLOTS
+@@ -2942,6 +2950,7 @@ bool DismissPopupEventFilter::eventFilter(QObject *watched, QEvent *event)
+ 
+ void ShellCorona::setupWaylandIntegration()
+ {
++#ifndef Q_OS_WIN
+     if (!KWindowSystem::isPlatformWayland()) {
+         return;
+     }
+@@ -2958,6 +2967,7 @@ void ShellCorona::setupWaylandIntegration()
+     registry->setup();
+     connection->roundtrip();
+     qApp->installEventFilter(new DismissPopupEventFilter(this));
++#endif
+ }
+ 
+ ScreenPool *ShellCorona::screenPool() const
+diff --git a/startkde/CMakeLists.txt b/startkde/CMakeLists.txt
+--- a/startkde/CMakeLists.txt
++++ b/startkde/CMakeLists.txt
+@@ -1,10 +1,10 @@
+ add_subdirectory(plasmaautostart)
+-add_subdirectory(kcminit)
++# add_subdirectory(kcminit)  # fork/pipe based, skipped on Windows
+ add_subdirectory(waitforname)
+-add_subdirectory(startup-sound)
++# add_subdirectory(startup-sound)  # Canberra-dependent, skipped on Windows
+ 
+ if (SYSTEMD_FOUND)
+-    add_subdirectory(systemd)
++    # add_subdirectory(systemd)  # systemd-specific, skipped on Windows
+ endif()
+ 
+ qt_add_dbus_interface(
+@@ -33,6 +33,7 @@ kconfig_target_kcfg_file(startplasma
+     MUTATORS
+ )
+ 
++if (WITH_WAYLAND)
+ add_executable(startplasma-wayland ${START_PLASMA_COMMON_SRCS} startplasma-wayland.cpp)
+ 
+ target_link_libraries(startplasma-wayland PRIVATE
+@@ -59,9 +60,11 @@ if(NOT CMAKE_INSTALL_PREFIX STREQUAL "/usr")
+         XCURSOR_PATH="~/.local/share/icons:~/.icons:${KDE_INSTALL_FULL_DATAROOTDIR}/icons:$XCURSOR_PATH:/usr/share/icons:/usr/share/pixmaps:/usr/X11R6/lib/X11/icons")
+ endif()
+ 
++install(TARGETS startplasma-wayland ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
++endif()
++
+ configure_file(config-startplasma.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-startplasma.h)
+ 
+-install(TARGETS startplasma-wayland ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
+ if (WITH_X11_SESSION)
+     install(TARGETS startplasma-x11 ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
+ endif()
+diff --git a/startkde/startplasma.cpp b/startkde/startplasma.cpp
+--- a/startkde/startplasma.cpp
++++ b/startkde/startplasma.cpp
+@@ -16,6 +16,7 @@
+ #include <QDir>
+ #include <QEventLoop>
+ #include <QProcess>
++#include <QThread>
+ #include <QStandardPaths>
+ #include <QTextStream>
+ 
+@@ -29,7 +30,9 @@
+ #include <KPackage/PackageLoader>
+ #include <KSharedConfig>
+ 
++#ifndef Q_OS_WIN
+ #include <unistd.h>
++#endif
+ 
+ #include <autostartscriptdesktopfile.h>
+ 
+@@ -396,7 +399,11 @@ void setupPlasmaEnvironment()
+ {
+     qputenv("KDE_FULL_SESSION", "true");
+     qputenv("KDE_SESSION_VERSION", "6");
++#ifdef Q_OS_WIN
++    qputenv("KDE_SESSION_UID", qgetenv("USERNAME"));
++#else
+     qputenv("KDE_SESSION_UID", QByteArray::number(getuid()));
++#endif
+     qputenv("XDG_CURRENT_DESKTOP", "KDE");
+ 
+     qputenv("KDE_APPLICATIONS_AS_SCOPE", "1");
+@@ -809,7 +816,11 @@ void waitForKonqi()
+         wait_drkonqi_counter.start();
+         QStringList services = allServices(QLatin1String("org.kde.drkonqi-"));
+         while (!services.isEmpty()) {
++#ifdef Q_OS_WIN
++            QThread::msleep(5000);
++#else
+             sleep(5);
++#endif
+             services = allServices(QLatin1String("org.kde.drkonqi-"));
+             if (wait_drkonqi_counter.elapsed() >= wait_drkonqi_timeout) {
+                 // ask remaining drkonqis to die in a graceful way
+diff --git a/startkde/kcminit/main.cpp b/startkde/kcminit/main.cpp
+--- a/startkde/kcminit/main.cpp
++++ b/startkde/kcminit/main.cpp
+@@ -10,7 +10,9 @@
+ 
+ #include "debug.h"
+ 
++#ifndef Q_OS_WIN
+ #include <unistd.h>
++#endif
+ 
+ #include <KFileUtils>
+ #include <QDBusConnection>
+diff --git a/startkde/session-restore/CMakeLists.txt b/startkde/session-restore/CMakeLists.txt
+--- a/startkde/session-restore/CMakeLists.txt
++++ b/startkde/session-restore/CMakeLists.txt
+@@ -14,7 +14,6 @@ target_link_libraries(plasma-fallback-session-save
+     KF6::ConfigCore
+     PW::LibTaskManager
+     Qt6::GuiPrivate
+-    Wayland::Client
+ )
+ 
+ 
+diff --git a/startkde/waitforname/waiter.cpp b/startkde/waitforname/waiter.cpp
+--- a/startkde/waitforname/waiter.cpp
++++ b/startkde/waitforname/waiter.cpp
+@@ -11,7 +11,9 @@
+ #include <QDBusConnectionInterface>
+ #include <QDBusServiceWatcher>
+ 
++#ifndef Q_OS_WIN
+ #include <unistd.h>
++#endif
+ 
+ #include "debug_p.h"
+ #include "waiter.h"

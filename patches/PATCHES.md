@@ -8,9 +8,87 @@ packages; manual `patch -p1` for plain CMake builds).
 Design, usage and implementation notes for everything we built on top of
 the stock KDE sources: see `docs/windows-port-notes.md`.
 
-## kwindowsystem (6.28.0) - Windows backend
+## plasma-workspace (6.7.4) - Phase 3 M3.1 minimal shell
 
-`0001-windows-backend.patch` adds a complete Windows platform backend
+Applied via Craft recipe `patchToApply["6.7.4"]` (blueprint
+`kde/plasma/plasma-workspace`, local edit: platform restriction removed):
+
+* `0001-windows-build-conditions.patch` - top-level `CMakeLists.txt`:
+  add `WITH_WAYLAND` option (default OFF on Windows), guard
+  `find_package(X11)`/wayland-only subdirectories, skip Linux-only
+  components (`appmenu`, `xembed-sni-proxy`, `ksmserver`,
+  `logout-greeter`, `klipper`, `devicenotifications`, `kcminit`),
+  demote KSysGuard/Canberra to OPTIONAL in `feature_summary`.
+* `0002-subdir-wayland-guards.patch` - per-file `Q_OS_WIN`/`WITH_WAYLAND`
+  guards across libkworkspace, libtaskmanager, libnotificationmanager,
+  libclock, libklookandfeel, components (dbus, keyboardlayout,
+  sessionsprivate), shell, krunner, ksplash, startkde, applets
+  (notifications, systemtray, kicker, digital-clock), wallpapers:
+  * KX11Extras/KStartupInfo/KWaylandExtras/LayerShellQt includes and
+    usage sites,
+  * Wayland protocol header includes (`qwayland-*-v1.h`) and
+    `QWaylandClientExtension` classes,
+  * `kdisplaymanager.cpp` replaced by a Windows stub (X11 session
+    manager API), `outputorderwatcher.cpp` falls back to the base class,
+  * `virtualdesktopinfo.cpp` gets a `WindowsPrivate` fallback and the
+    `tasktools.cpp`/`utils.cpp`/`servicesFromPid` `environ` name clash
+    with MSVC CRT is renamed,
+  * DBus interface XML for KWin VirtualKeyboard and StatusNotifier*
+    installed into `CraftRoot\bin\data\dbus-1\interfaces`,
+  * MSVC `QByteArrayView` range-for fixes.
+* `0003-minimal-shell-subsets.patch` - M3.1 scope reduction: applets
+  (8 of 19 kept: calendar, digital-clock, kicker, lock_logout,
+  panelspacer, margins-separator, notifications, systemtray), all
+  runners deferred, containmentactions reduced to contextmenu/paste/
+  applauncher, optional top-level components deferred (marked
+  `# deferred: enabled in later M3 stages`).
+
+M3.1 acceptance: `plasmashell.exe` builds and starts, creates the
+full-screen desktop window (`Desktop @ QRect(0,0 2560x1440)`) and stays
+alive. The shell package (`org.kde.plasma.desktop`) is taken from the
+plasma-desktop 6.7.4 tarball (not yet built) and installed at
+`%LOCALAPPDATA%\plasma\shells\org.kde.plasma.desktop`; the session bus
+address must be `tcp:host=127.0.0.1,port=12443` (see
+`tools/start-plasma-session.cmd`).
+
+## libplasma (6.7.4)
+
+Applied via Craft recipe `patchToApply["6.7.4"]` (blueprint
+`kde/plasma/libplasma`, local edit: platform restriction removed):
+
+* `0001-wayland-optional.patch` - `WITH_WAYLAND` option default OFF on
+  Windows; guard the Wayland-only find_package blocks.
+* `0002-subdir-wayland-guards.patch` - Q_OS_WIN guards for KX11Extras
+  includes in the blur/theme code, a Windows stub for
+  `plasmashellwaylandintegration` and the CMake wayland source lists.
+
+## plasma-activities-stats (6.7.4)
+
+* `0001-export-const-iterator-members.patch` - `resultset.h`: annotate
+  the nested `ResultSet::Result` and `ResultSet::const_iterator` member
+  functions with `PLASMAACTIVITIESSTATS_EXPORT`. MSVC only exports
+  explicitly marked members, so the upstream DLL is missing e.g.
+  `const_iterator::operator++`; kicker fails to link without this.
+  Applied via Craft recipe `patchToApply["6.7.4"]`.
+
+## kauth (6.28.0)
+
+* `0001-windows-build-fixes.patch` - compile fixes for the Windows
+  backend (`QMetaTypeModuleHelper` guarded, missing includes).
+* `0002-qmetatype-gui-helper-qt610.patch` - `QMetaTypeModuleHelper`
+  was removed in Qt 6.10; use plain `QMetaType` on Qt >= 6.10.
+* `0001-dbus-backend-find-qt6dbus.patch` - find Qt6DBus for the DBus
+  backend (as `qt_add_dbus_interface` requires).
+  Applied via Craft recipe `patchToApply["6.28.0"]`.
+
+## krunner (6.28.0)
+
+* `0001-find-qt6dbus.patch` - link the DBus runner against Qt6DBus.
+* `0002-dbusrunner-wayland-guard.patch` - guard the Wayland-only
+  startup-notification include with `Q_OS_WIN`.
+  Applied via Craft recipe `patchToApply["6.28.0"]`.
+
+## kwindowsystem (6.28.0) - Windows backend`0001-windows-backend.patch` adds a complete Windows platform backend
 (Phase 3 M2):
 
 * framework core: `Platform::Windows` + `isPlatformWindows()`;
