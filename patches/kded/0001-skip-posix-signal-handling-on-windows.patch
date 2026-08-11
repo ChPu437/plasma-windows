@@ -1,0 +1,11 @@
+--- a/src/kded.cpp
++++ b/src/kded.cpp
+@@ -580,7 +580,9 @@ int main(int argc, char **argv)
+     delayedCheck = cg.readEntry("DelayedCheck", false);
+ 
++#ifdef Q_OS_UNIX
+     signal(SIGTERM, sighandler);
+     signal(SIGHUP, sighandler);
++#endif
+ 
+     KCrash::setFlags(KCrash::AutoRestart);

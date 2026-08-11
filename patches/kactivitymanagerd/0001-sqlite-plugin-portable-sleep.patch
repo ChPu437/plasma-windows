@@ -1,0 +1,21 @@
+diff --git a/src/service/plugins/sqlite/ResourceScoreMaintainer.cpp b/src/service/plugins/sqlite/ResourceScoreMaintainer.cpp
+--- a/src/service/plugins/sqlite/ResourceScoreMaintainer.cpp
++++ b/src/service/plugins/sqlite/ResourceScoreMaintainer.cpp
+@@ -11,7 +11,7 @@
+ #include <QList>
+ 
+ // System
+-#include <unistd.h>
++#include <QThread>
+ 
+ // Utils
+ #include <utils/d_ptr_implementation.h>
+@@ -52,7 +52,7 @@ ResourceScoreMaintainer::Private::~Private()
+ void ResourceScoreMaintainer::Private::processResources()
+ {
+     // initial delay before processing the resources
+-    sleep(1);
++    QThread::sleep(1);
+ 
+     ResourceTree resources;
+ 

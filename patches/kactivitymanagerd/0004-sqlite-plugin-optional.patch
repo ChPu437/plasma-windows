@@ -1,0 +1,15 @@
+diff --git a/src/service/plugins/CMakeLists.txt b/src/service/plugins/CMakeLists.txt
+--- a/src/service/plugins/CMakeLists.txt
++++ b/src/service/plugins/CMakeLists.txt
+@@ -4,7 +4,11 @@ function(kamd_add_plugin plugin_name)
+    kcoreaddons_add_plugin(${plugin_name} ${ARGN} INSTALL_NAMESPACE ${KAMD_PLUGIN_DIR})
+    target_link_libraries(${plugin_name} kactivitymanagerd_plugin)
+ endfunction()
++option(BUILD_KAMD_SQLITE_PLUGIN "Build the resource scoring/linking sqlite plugin" OFF)
++if(BUILD_KAMD_SQLITE_PLUGIN)
+ add_subdirectory (sqlite)
++endif()
++
+ add_subdirectory (activitytemplates)
+ add_subdirectory (globalshortcuts)
+ add_subdirectory (recentlyused-eventspy)

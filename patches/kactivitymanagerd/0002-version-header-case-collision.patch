@@ -1,0 +1,12 @@
+diff --git a/src/service/Application.cpp b/src/service/Application.cpp
+--- a/src/service/Application.cpp
++++ b/src/service/Application.cpp
+@@ -7,7 +7,7 @@
+ // Self
+ #include "Application.h"
+ #include <kactivities-features.h>
+-#include <version.h>
++#include <kactivitymanagerd_version.h>
+ 
+ // Qt
+ #include <QDBusConnection>
