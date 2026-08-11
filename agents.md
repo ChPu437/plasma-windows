@@ -74,9 +74,9 @@ Runtime testing:
 
 The VM should be considered disposable and should use VMware snapshots before shell replacement experiments.
 
-The VM is currently not created, and this status should be updated after the user claims its creation.
+The VM has been created and is in use for shell-switching experiments (Phase 0.5, confirmed by the user running `switch-shell.cmd install` inside it on 2026-08-11). It should still be considered disposable and VMware snapshots must be taken before shell replacement experiments.
 
-The path to visual studio dev kit: E:\Microsoft Visual Studio
+The path to visual studio dev kit: E:\Microsoft Visual Studio (the actual installation found on the development machine is C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools)
 
 ---
 
