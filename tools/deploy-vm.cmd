@@ -3,13 +3,16 @@ setlocal EnableExtensions
 rem ===========================================================================
 rem deploy-vm.cmd - one-shot deployment + session start inside the test VM
 rem
-rem Assumes the CraftRoot runtime was extracted to D:\Projects\CraftRoot
-rem (from plasma-vm.7z).  This script:
+rem Location-independent: the CraftRoot runtime must sit in the same folder
+rem as this script (extract plasma-vm.zip next to it, or copy the whole
+rem package). There is no hard-coded drive/path.
+rem
+rem The script:
 rem   1. sets up the environment (PATH, Qt plugins, XDG dirs)
 rem   2. mirrors KDE package data (plasmoids, shells, wallpapers, .desktop
-rem      files, ...) from CraftRoot\bin\data to %LOCALAPPDATA%
+rem      files, ...) from bin\data to %LOCALAPPDATA%
 rem      (QStandardPaths on Windows resolves GenericDataLocation to
-rem      LOCALAPPDATA, not the craft prefix)
+rem      LOCALAPPDATA, not the package prefix)
 rem   3. writes %LOCALAPPDATA%\menus\applications.menu (KService's
 rem      DefaultAppDirs points at the Start Menu on Windows, so AppDir is
 rem      set explicitly)
@@ -22,7 +25,9 @@ rem foreground so the script stays alive as the session host; close it
 rem (or plasmashell) to end the session.
 rem ===========================================================================
 
-set "CRAFT_ROOT=D:\Projects\CraftRoot"
+rem Package root = this script's folder (no hard-coded path).
+set "CRAFT_ROOT=%~dp0"
+if "%CRAFT_ROOT:~-1%"=="\" set "CRAFT_ROOT=%CRAFT_ROOT:~0,-1%"
 set "CRAFT_BIN=%CRAFT_ROOT%\bin"
 set "CRAFT_DATA=%CRAFT_ROOT%\bin\data"
 set "LOCAL_DATA=%LOCALAPPDATA%"
@@ -32,8 +37,8 @@ set "DBUS_CONF=%~dp0dbus-session-plasma.conf"
 
 if not exist "%CRAFT_BIN%\plasmashell.exe" (
     echo ERROR: %CRAFT_BIN%\plasmashell.exe not found.
-    echo Extract plasma-vm.zip to %CRAFT_ROOT% first, e.g.:
-    echo    powershell Expand-Archive plasma-vm.zip -DestinationPath D:\Projects
+    echo The CraftRoot runtime must sit in the same folder as this script.
+    echo Extract plasma-vm.zip next to deploy-vm.cmd first.
     pause
     exit /b 1
 )
