@@ -1,3 +1,6 @@
 build/
 *.log
 .vs/
+vm-package/
+*.dmp
+*.obj
