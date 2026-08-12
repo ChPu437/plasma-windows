@@ -29,7 +29,7 @@ set "CRAFT_BIN=%CRAFT_ROOT%\bin"
 set "CRAFT_DATA=%CRAFT_ROOT%\bin\data"
 set "DBUS_CONF=%~dp0dbus\session-plasma.conf"
 set "LOCAL_DATA=%LOCALAPPDATA%"
-set "QT_QPA_PLATFORM=windows:darkmode=0"
+set "QT_STYLE_OVERRIDE=breeze"
 
 rem 0. Mirror KDE package data into %LOCALAPPDATA% (QStandardPaths on Windows).
 echo Preparing KDE runtime data in %LOCAL_DATA%...
@@ -96,4 +96,5 @@ if not exist "%LOCAL_DATA%\plasma-win-session" mkdir "%LOCAL_DATA%\plasma-win-se
 "%CRAFT_BIN%\kded6.exe" > "%LOCAL_DATA%\plasma-win-session\kded6.log" 2>&1
 echo kded6 exited with code %errorlevel%. See %LOCAL_DATA%\plasma-win-session\kded6.log
 endlocal
+
 
