@@ -102,10 +102,44 @@ public API). Also `patches/qtbase/0001-modernwindows-style-sdk19041-fallback.pat
    libnotificationmanager, libklookandfeel, wallpapers/, minimal applets/runners.
 4. Gate: plasmashell.exe links with no X11/Wayland dependencies.
 
+**Status: DONE (M3.1-M3.3; follow-ups in M3.6+).** plasmashell.exe builds
+and links with no X11/Wayland dependencies. Subsequent milestone work
+(taskbar model, popup anchoring, edit mode, window stacking, icon theme)
+lives in `patches/plasma-workspace/0001-...` (see PATCHES.md) - keep the
+work-tree patches in sync when rebuilding from a fresh tarball.
+
 ### M4 - plasma-desktop 6.7.4 (custom recipe / plain CMake)
 1. Desktop containment (wallpaper), Kicker, taskmanager, pager, systemtray.
 2. Breeze theme/icons (blueprint exists).
 3. Gate: QML components load completely.
+
+**Status: IN PROGRESS.** Components delivered so far (M3.4-M3.6 of the
+git milestone numbering):
+
+* desktop containment + wallpaper + right-click menu + **edit mode**
+  (fixed: "enter edit mode" used to minimize the desktop itself via
+  `KWindowSystem::setShowingDesktop`; now a no-op on Windows and the
+  backend skips our own windows)
+* kickoff launcher with ksycoca application list (M3.4)
+* **taskbar with real Windows window integration** (new
+  `WindowsWindowTasksModel` in libtaskmanager: EnumWindows + taskbar
+  candidate filter + Win32 icons + activate/close/minimize/maximize +
+  incremental updates; custom `ConcatenateTasksProxyModel` because
+  Qt 6.11's `QConcatenateTablesProxyModel` fails to map Windows models)
+* popup anchoring (M3.6b): `PopupPlasmaWindow::updatePosition()` gets a
+  `Q_OS_WIN` branch that applies the TransientPlacementHelper rect
+* pager / showdesktop / margins separator / clock / system tray (base)
+
+Remaining M4 items:
+
+* icon theme integration (breeze icons installed under
+  `CraftRoot\bin\data\icons`; QIcon layer works, panel icons still
+  blocked - KIconLoader resolves the theme but fails to load icons;
+  see `docs/windows-port-notes.md` section 7)
+* taskbar polish: hover thumbnails (transparent - no DWM thumbnail
+  bridge yet), grouping, pinning, context menu
+* tray: network/volume applets need a Windows bridge (PulseAudio
+  dependency)
 
 ### M5 - Integration and acceptance
 1. P3-A: plasmashell runs windowed on dev machine (desktop + panel).
@@ -115,6 +149,17 @@ public API). Also `patches/qtbase/0001-modernwindows-style-sdk19041-fallback.pat
    bridge optional later.
 5. Gate: desktop/wallpaper/panel/launcher/taskmanager work in VM; recovery
    flow identical to Phase 0.5.
+
+**Status: NOT STARTED.** P3-A is effectively reached on the dev machine
+(desktop + panel + taskbar + launcher run windowed). P3-B/C and the
+final gate require VM validation. Before VM work, verify on the VM:
+
+* window stacking: desktop stays below other windows, panel stays on
+  top (`HWND_BOTTOM` + `WS_EX_NOACTIVATE` on DesktopView; panel already
+  `WS_EX_TOPMOST`) - dev machine fights the live Explorer taskbar
+* panel work area (`SPI_SETWORKAREA` in PanelView) so maximized windows
+  stop under the panel - same Explorer conflict on the dev machine
+* "show desktop" keeps the desktop visible
 
 ### Known downgrades (documented in acceptance)
 * Third-party windows: DWM native title bars, no rounded corners (Win10 LTSC

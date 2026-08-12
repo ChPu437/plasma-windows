@@ -238,3 +238,60 @@ for %%f in (patches\kactivitymanagerd\*.patch) do patch -p1 -d <src-dir> -i %%f
 * `CraftRoot\etc\BlueprintSettings.ini` carries per-package build args:
   `KF_IGNORE_PLATFORM_CHECK=ON` (KDEPlatformCheck escape hatch),
   `WITH_X11=OFF`, `buildTests = False`.
+
+## plasma-workspace (6.7.4) - M3.6+ shell work
+
+`0004-windows-m36-shell.patch` (applied after 0001-0003) - all shell /
+taskbar work of M3.6-M3.7:
+
+* `shell/shellcorona.cpp`: `setDashboardShown` is a no-op on Windows
+  ("show desktop" is a KWin effect; the KWindowSystem Windows backend
+  minimized every top-level window including the desktop itself).
+* `shell/desktopview.cpp`: keep the desktop at the bottom of the window
+  stack (`WS_EX_NOACTIVATE` + `HWND_BOTTOM`, re-asserted on
+  Expose/ActivationChange/WindowActivate).
+* `shell/panelview.cpp/.h`: `updateWorkArea()` ->
+  `SystemParametersInfo(SPI_SETWORKAREA)` so maximized windows stop at
+  the panel edge (show/hide/move/resize update; hide restores).
+* `shell/main.cpp`: re-assert `QIcon::setThemeSearchPaths` with
+  `<appdir>/data/icons` after the Kirigami controls plugin overwrote
+  them during QML engine setup (Windows).
+* `libtaskmanager/windowswindowtasksmodel.{h,cpp}` (new): the Windows
+  window tasks model (EnumWindows + taskbar-candidate filter, own
+  process skipped, Win32 icons, activate/close/minimize/maximize,
+  incremental updates).
+* `libtaskmanager/windowtasksmodel.cpp`: create `WindowsWindowTasksModel`
+  on Windows (Wayland/X11 branches excluded).
+* `libtaskmanager/concatenatetasksproxymodel.{h,cpp}`: on Windows a
+  hand-rolled aggregation (Qt 6.11 `QConcatenateTablesProxyModel`
+  fails to map Windows models - data() reads empty).
+* `shell/CMakeLists.txt`, `libtaskmanager/CMakeLists.txt`: link
+  KF6::IconThemes / dwmapi; add the Windows model sources.
+
+## kwindowsystem (6.28.0) - 0001 updated
+
+`0001-windows-backend.patch` regenerated from the clean 6.28.0 source;
+adds `windowslist.cpp::setShowingDesktop` skipping windows of the
+current process (so "show desktop" never hides the plasma desktop/panel).
+
+## kiconthemes (6.28.0)
+
+`0001-windows-icon-theme-paths.patch` (new):
+
+* `src/kicontheme.cpp`: add `QCoreApplication::applicationDirPath()/data/icons`
+  to the icon theme dir list (ctor + `KIconTheme::list()`) - Craft
+  bundles data next to the executable, QStandardPaths does not know it.
+* `KIconTheme::current()`: skip the KIconEngine virtual theme names
+  (`KIconEngine` / `breeze-internal`) on Windows and fall through to
+  the configured (kdeglobals) theme.
+
+## libplasma (6.7.4) - 0003 regenerated
+
+`0003-windows-popup-positioning.patch` regenerated; adds
+`PopupPlasmaWindow::updatePosition()` `Q_OS_WIN` branch (apply the
+TransientPlacementHelper rect like X11), visualParent recovery from the
+QML parent chain, popup-only off-screen parking at componentComplete
+(anti-flicker; must not affect the desktop window), delayed
+re-positioning in `PlasmaWindow::showEvent`, and removal of the
+`socketWindowPositionChanged` call in `updateVisibility` (it squashed
+the widget explorer).

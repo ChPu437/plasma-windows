@@ -190,3 +190,137 @@ Plain CMake build (no blueprint); four patches in
   libraryPaths in our tests).
 - Probe builds for KF6-on-Windows can mix E:\Qt headers/libs with
   CraftRoot KF6 packages when the Qt versions are identical (6.11.1).
+
+## 7. Icon theme loading on Windows (M3.6)
+
+The icon theme path has two independent search layers, and neither knows
+about the Craft bundle layout (`<appdir>\data\...`) on Windows:
+
+- Qt layer (`QIcon::fromTheme` -> QIconLoader): search paths come from
+  `QStandardPaths::GenericDataLocation` (%APPDATA%/%ProgramData%).
+- KDE layer (`KIconLoader` -> `KIconTheme`): `kicontheme.cpp` collects
+  the same `QStandardPaths` locations plus the `:/icons` Qt resource.
+
+Both miss `CraftRoot\bin\data\icons`. In addition:
+
+- The **Kirigami controls plugin** (`kirigamicontrolsplugin.cpp`)
+  overwrites `QIcon::setThemeSearchPaths` when the Qt theme name is
+  empty (Windows) and sets `themeName = "breeze-internal"` (a virtual
+  theme that resolves through the `breeze` fallback theme). Any fix
+  applied in `main()` before the QML engine is created gets clobbered;
+  a `QTimer` re-assertion (~100 ms) after QML engine setup works for
+  later-rendered windows (settings dialogs) but not for the panel icons
+  rendered during startup (their QML pixmap cache holds the empty
+  result; `QPixmapCache::clear()` does not cover QQuickPixmapCache).
+- `KIconTheme::current()` follows `QIcon::themeName()`; the KIconEngine
+  plugin's virtual names (`KIconEngine` / `breeze-internal`) have no
+  theme directory, so on Windows we skip them and fall through to the
+  kdeglobals "breeze" setting.
+- The `KIconEnginePlugin.dll` is installed by craft under
+  `plugins\kiconthemes6\iconengines\` (per-library plugin dir) but Qt
+  only scans `plugins\iconengines\`.
+
+Fixes so far (patches/kiconthemes, patches/plasma-workspace 0001):
+
+- `kicontheme.cpp`: add `applicationDirPath()/data/icons` to the icon
+  dir list (ctor + `KIconTheme::list()`); skip the KIconEngine virtual
+  theme names in `KIconTheme::current()` on Windows.
+- plasmashell `main.cpp`: re-assert `QIcon::setThemeSearchPaths` with
+  `<appdir>/data/icons` after QML engine setup.
+- `KIconEnginePlugin.dll` copied into `plugins\iconengines\`.
+
+Status: QIcon layer works (settings icons render). Panel icons (kickoff
+"start-here-kde", showdesktop "user-desktop") still render empty -
+KIconLoader reports theme=breeze and the correct theme dir but
+`loadIcon()` returns nothing (theme dir parsing/icon match not yet
+diagnosed) and the startup-rendered QML pixmaps stay cached.
+
+## 8. Window stacking and panel work area (M3.7)
+
+KDE semantics implemented with native Win32 z-order:
+
+- **Desktop below everything**: `DesktopView::showEvent` sets
+  `WS_EX_NOACTIVATE` (clicks must not raise it) and re-asserts
+  `HWND_BOTTOM`; `DesktopView::event()` repeats the re-assertion on
+  Expose/ActivationChange/WindowActivate (owner-chain raises from
+  dialogs, edit mode, snap layouts). Snap-layout overlay interference
+  from a raised desktop was also reported.
+- **Panel on top**: PanelView already carries `Qt::WindowStaysOnTopHint`
+  (Windows branch).
+- **Panel work area**: `PanelView::updateWorkArea()` calls
+  `SystemParametersInfo(SPI_SETWORKAREA)` so maximized windows stop at
+  the panel edge like the Windows taskbar (show/hide/move/resize
+  update; hide restores the full screen). The dev machine fights the
+  live Explorer taskbar - verify in the VM.
+- **"Show desktop"**: `ShellCorona::setDashboardShown` is a no-op on
+  Windows, and `KWindowSystem`'s Windows backend
+  (`windowslist.cpp::setShowingDesktop`) skips windows of the current
+  process, so other windows minimize/restore while the plasma
+  desktop/panel stay visible.
+
+## 9. Taskbar window model (M3.6)
+
+libtaskmanager had no Windows source model: `WindowTasksModel::initSourceTasksModel`
+only created Wayland/X11 models, leaving the source null (empty taskbar).
+
+New `WindowsWindowTasksModel` (libtaskmanager):
+
+- window list via `EnumWindows` with a taskbar-candidate filter
+  (visible, top-level, no owner, not WS_EX_TOOLWINDOW, not cloaked) -
+  `KWindowSystem::stackingOrder` does not exist outside X11.
+- windows of the current process (the shell itself) are filtered out so
+  the desktop/panel never appear in the taskbar.
+- roles: title, icon (WM_GETICON -> class icon -> exe icon via
+  SHGetFileInfo -> `QImage::fromHICON`), active/min/max/fullscreen
+  (GetForegroundWindow/IsIconic/IsZoomed), geometry, screen
+  (Qt-logical via `QGuiApplication::screens()` matching - physical
+  rects break `filterByScreen` under DPI scaling), PID, launcher URL
+  (exe path).
+- actions: activate (restore + SetForegroundWindow), close (WM_CLOSE),
+  toggle minimized/maximized, launch new instance.
+- refresh by QTimer (500 ms) with **incremental** rowsInserted /
+  rowsRemoved diffs - a full `beginResetModel()` breaks
+  `QConcatenateTablesProxyModel`'s row mapping (data() forwards read
+  empty), which is also why Qt 6.11's `QConcatenateTablesProxyModel`
+  was replaced on Windows by a hand-rolled `ConcatenateTasksProxyModel`
+  (QAbstractListModel + per-source lambdas + offset math).
+
+## 10. Popup anchoring (M3.6b)
+
+`PlasmaCore.AppletPopup` maps to `PlasmaQuick::AppletPopup` ->
+`PopupPlasmaWindow`. `updatePosition()` computes the popup rect via
+`TransientPlacementHelper` (anchored to `visualParent`, expanded to the
+panel's window mask) but only applied it on X11/Wayland - on Windows
+`setPosition` was never called and the popup stayed at the OS default
+(screen center). Fix: `Q_OS_WIN` branch that applies the rect like X11.
+
+Other pieces:
+
+- `visualParent` QML bindings are never evaluated on Windows (lazy
+  binding + C++ reading the member directly); set it explicitly:
+  `CompactApplet.qml` assigns `dialog.visualParent = compactRepresentation`
+  in `onCompactRepresentationChanged`, and `PopupPlasmaWindow` has a
+  fallback that walks the QML parent chain for the
+  `compactRepresentation` property.
+- Anti-flicker: park popup windows off-screen
+  (`setPosition(QPoint(-32000, -32000))` at `componentComplete`) -
+  **popups only** (`qobject_cast<PopupPlasmaWindow*>`), otherwise the
+  desktop window (also a Dialog) ends up parked off-screen and
+  minimized after edit mode.
+- Reposition once after layout settles (`QTimer::singleShot(0, ...)` in
+  `PlasmaWindow::showEvent`) because the popup size is not final at
+  first show (clock popup used to extend past the screen bottom).
+- `updateVisibility()` must NOT call `slotWindowPositionChanged()` -
+  it resizes mainItem to the window size, squashing the widget
+  explorer when the window is still at its initial size on first show.
+
+## 11. Edit mode and "show desktop" regression (M3.7)
+
+"Enter Edit Mode" minimized the desktop itself: `ShellCorona::setDashboardShown`
+-> `KWindowSystem::setShowingDesktop(true)` -> the Windows backend
+minimized every top-level window, including the desktop view. Fixed by
+the no-op + own-process skip described in section 8.
+
+Widget explorer got squashed into 160x160 because
+`updateVisibility()` called `slotWindowPositionChanged()` which resizes
+mainItem to the current window size (see section 10).

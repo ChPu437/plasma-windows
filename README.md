@@ -5,10 +5,12 @@ replace `explorer.exe` as the interactive shell on Windows 10 IoT
 Enterprise LTSC 2021 with `plasmashell` (KDE Plasma 6.7.4), keeping the
 Windows kernel / Win32 / DWM / graphics stack untouched.
 
-Status: **Phase 3 (M3)** - plasmashell runs on Windows: desktop wallpaper,
-panel, kickoff app launcher and the default layout load; core session
-services (dbus, kded6, kactivitymanagerd) run. Still in the iterative
-hardening stage; VM testing pending.
+Status: **Phase 3 (M3/M4)** - plasmashell runs on Windows with the core
+desktop working: wallpaper, panel, kickoff app launcher, taskbar with
+real Windows window integration, correct popup anchoring, edit mode and
+"show desktop". Session services (dbus, kded6, kactivitymanagerd) run.
+Remaining M4 work: icon theme integration (panel icons), taskbar polish
+(thumbnails), tray/volume alternatives; then VM acceptance (M5).
 
 See `agents.md` for the full project plan and `patches/PATCHES.md` for
 the porting patch catalogue.
@@ -28,17 +30,29 @@ the porting patch catalogue.
 | 3 M3.3| panel window + default applets         | done   |
 | 3 M3.4| kickoff app listing (sycoca + menu)    | done   |
 | 3 M3.5| Windows app integration in launcher    | todo   |
-| 3 M3.6| Taskbar (icontasks) window integration | todo   |
+| 3 M3.6| Taskbar window integration + popup anchoring | done (base) |
+| 3 M3.7| Edit mode, "show desktop", window stacking | done (dev machine) |
 | 4     | Dolphin + KIO Windows backend          | todo   |
 | 5     | KRunner, notifications, polish         | todo   |
 
 ## What works today
 
 * `plasmashell` starts, stays responsive, and shows:
-  * full-screen desktop with a generated gradient wallpaper
-  * a bottom panel (kept above the desktop window, `WS_EX_TOPMOST`)
+  * full-screen desktop with wallpaper and desktop icons containment
+  * a right-edge panel (kept above the desktop window, `WS_EX_TOPMOST`)
   * kickoff (app launcher) with a working application list from ksycoca
-  * pager, showdesktop, margins separator, icon tasks (partial)
+  * **taskbar (icontasks) with real Windows window integration**: open
+    windows appear as buttons, click switches the foreground window,
+    middle/close and minimize/maximize actions work (via the new
+    `WindowsWindowTasksModel` in libtaskmanager)
+  * pager, showdesktop, margins separator, clock, system tray (base)
+* **Popup anchoring**: kickoff/clock/tray popups anchor to their panel
+  button (right edge, no overlap) via the Windows branch added to
+  `PopupPlasmaWindow::updatePosition()` (TransientPlacementHelper)
+* **Edit mode** works; the widget explorer sidebar no longer gets
+  squashed
+* **"Show desktop"** minimizes other windows but keeps the plasma
+  desktop/panel visible (KWindowSystem backend skips our own windows)
 * Session stack: `dbus-daemon` (session bus over TCP),
   `kactivitymanagerd`, `kded6` - all register on the bus.
 * Debug logging: `%TEMP%\plasmashell-debug.log` captures all Qt logging
@@ -46,19 +60,26 @@ the porting patch catalogue.
 
 ## Known issues / next steps
 
-1. **Popup placement**: kickoff's popup centers on screen instead of
-   anchoring to the panel (PlasmaQuick/Qt popup positioning on Windows).
-2. **Taskbar (icontasks)**: applet fails to load (`Invalid empty URL`);
-   the M2 KWindowSystem window list needs to be exercised.
-3. **kactivitymanagerd database**: sqlite resource plugin is not built
-   (KIO dependency at the time); activities/recent-files degrade
-   gracefully.
-4. **kglobalaccel** service not started (global shortcuts unavailable).
+1. **Icon theme on the panel**: QIcon-based icons work (settings
+   dialogs) but the panel's kickoff/"show desktop" icons do not render
+   yet - the KIconLoader path resolves the breeze theme but fails to
+   load individual icons; see `docs/windows-port-notes.md` section 7.
+2. **Taskbar thumbnails**: window hover tooltips show transparent
+   thumbnail areas (no DWM thumbnail bridge yet).
+3. **Window management (dev machine)**: desktop z-order hardening and
+   panel work-area (`SPI_SETWORKAREA`) are implemented but fight the
+   live Explorer taskbar on the dev machine - verify in the VM (no
+   Explorer).
+4. **Tray**: statusnotifierwatcher runs; network/volume applets are
+   missing (PulseAudio dependency) - native Windows tray/volume bridge
+   needed.
 5. **Windows app integration**: the launcher only lists KDE `.desktop`
    entries; generate `.desktop` files (or a Windows app bridge) so
    notepad/calc/browsers are launchable.
-6. **VM validation**: run the full session in the LTSC VM (snapshot
-   first), fix anything the VM exposes, then attempt shell replacement.
+6. **kglobalaccel** service not started (global shortcuts unavailable).
+7. **VM validation (M5)**: run the full session in the LTSC VM
+   (snapshot first), fix anything the VM exposes, then attempt shell
+   replacement.
 
 ## Layout
 

@@ -1,0 +1,1088 @@
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/main.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/main.cpp
+index 5fa1a42..91f1e2a 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/main.cpp
++++ b/\shell/main.cpp
+@@ -27,8 +27,10 @@
+ #include <QDBusMessage>
+ #include <QDebug>
+ #include <QDir>
++#include <QIcon>
+ #include <QLoggingCategory>
+ #include <QMessageBox>
++#include <QPixmapCache>
+ #include <QProcess>
+ #include <QQmlDebuggingEnabler>
+ #include <QQuickWindow>
+@@ -37,6 +39,8 @@
+ #include <KAboutData>
+ #include <KCrash>
+ #include <KDBusService>
++#include <KIconLoader>
++#include <KIconTheme>
+ #include <KLocalizedString>
+ #include <KSignalHandler>
+ 
+@@ -109,6 +113,52 @@ int main(int argc, char *argv[])
+     QApplication app(argc, argv);
+ #ifdef Q_OS_WIN
+     qInstallMessageHandler(plasmaWindowsLogHandler);
++
++    // Craft bundles data next to the executable (bin/data); Qt's icon theme
++    // search paths (QStandardPaths) do not know about that layout on Windows,
++    // and the Kirigami controls plugin overwrites the search paths during QML
++    // engine setup - so re-assert the path after that happened and refresh
++    // the cached icon pixmaps.
++    const QString dataIcons = QCoreApplication::applicationDirPath() + QStringLiteral("/data/icons");
++    QStringList iconPaths = QIcon::themeSearchPaths();
++    if (!iconPaths.contains(dataIcons)) {
++        iconPaths.prepend(dataIcons);
++        QIcon::setThemeSearchPaths(iconPaths);
++    }
++    QTimer::singleShot(100, &app, []() {
++#ifdef Q_OS_WIN
++        // Must run after the Kirigami controls plugin overwrote the search
++        // paths (QML engine setup) but before the panel QML renders its
++        // icons - otherwise the icons are cached as empty.
++        const QString dataIcons = QCoreApplication::applicationDirPath() + QStringLiteral("/data/icons");
++        QStringList paths = QIcon::themeSearchPaths();
++        if (!paths.contains(dataIcons)) {
++            paths.prepend(dataIcons);
++            QIcon::setThemeSearchPaths(paths);
++            QPixmapCache::clear();
++            const auto windows = QGuiApplication::allWindows();
++            for (QWindow *w : windows) {
++                if (auto *qw = qobject_cast<QQuickWindow *>(w)) {
++                    qw->update();
++                }
++            }
++        }
++#endif
++    });
++
++    QTimer::singleShot(5000, &app, []() {
++        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG icons: theme=") << QIcon::themeName()
++                             << QStringLiteral("fallback=") << QIcon::fallbackThemeName()
++                             << QStringLiteral("paths=") << QIcon::themeSearchPaths()
++                             << QStringLiteral("plasmaIconNull=") << QIcon::fromTheme(QStringLiteral("plasma")).isNull()
++                             << QStringLiteral("startHereNull=") << QIcon::fromTheme(QStringLiteral("start-here-kde")).isNull()
++                             << QStringLiteral("breezeIndex=") << QFile::exists(QCoreApplication::applicationDirPath() + QStringLiteral("/data/icons/breeze/index.theme"));
++        KIconLoader *loader = KIconLoader::global();
++        const KIconTheme *theme = loader->theme();
++        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG KIconLoader: themeName=") << (theme ? theme->internalName() : QStringLiteral("none"))
++                             << QStringLiteral("dir=") << (theme ? theme->dir() : QStringLiteral("none"))
++                             << QStringLiteral("plasmaNull=") << loader->loadIcon(QStringLiteral("plasma"), KIconLoader::Small, 16).isNull();
++    });
+ #endif
+ 
+     qunsetenv("QT_WAYLAND_DISABLE_FIXED_POSITIONS");
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/shellcorona.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/shellcorona.cpp
+index 0f1a278..b56eb15 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/shellcorona.cpp
++++ b/\shell/shellcorona.cpp
+@@ -1838,7 +1838,15 @@ void ShellCorona::syncAppConfig()
+ 
+ void ShellCorona::setDashboardShown(bool show)
+ {
++#ifndef Q_OS_WIN
+     KWindowSystem::setShowingDesktop(show);
++#else
++    Q_UNUSED(show);
++    // Windows: "show desktop" is a KWin compositor effect; the KWindowSystem
++    // Windows backend implements setShowingDesktop(true) by minimizing every
++    // top-level window, which would also minimize the desktop view itself
++    // when entering edit mode.
++#endif
+ }
+ 
+ void ShellCorona::toggleDashboard()
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/desktopview.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/desktopview.cpp
+index f58998a..d073a8a 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/desktopview.cpp
++++ b/\shell/desktopview.cpp
+@@ -19,6 +19,10 @@
+ #include <QQuickItem>
+ #include <QScreen>
+ 
++#ifdef Q_OS_WIN
++#include <windows.h>
++#endif
++
+ #include <PlasmaQuick/AppletQuickItem>
+ 
+ #include <KAuthorized>
+@@ -100,6 +104,14 @@ void DesktopView::showEvent(QShowEvent *e)
+ {
+     QQuickWindow::showEvent(e);
+     adaptToScreen();
++#ifdef Q_OS_WIN
++    // Keep the desktop at the bottom of the window stack like KDE's desktop
++    // window type: never take activation (clicks must not raise it above
++    // other windows) and re-assert HWND_BOTTOM whenever shown.
++    HWND hwnd = reinterpret_cast<HWND>(winId());
++    SetWindowLongPtr(hwnd, GWL_EXSTYLE, GetWindowLongPtr(hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE);
++    SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
++#endif
+ }
+ 
+ void DesktopView::setScreenToFollow(QScreen *screen)
+@@ -386,6 +398,18 @@ bool DesktopView::event(QEvent *e)
+         }
+     }
+ 
++#ifdef Q_OS_WIN
++    // Anything can raise the desktop (owner chains when a dialog activates,
++    // edit mode, snap layouts...); re-assert HWND_BOTTOM so it always stays
++    // below regular windows like KDE's desktop window type.
++    if (e->type() == QEvent::Expose || e->type() == QEvent::ActivationChange || e->type() == QEvent::WindowActivate) {
++        QTimer::singleShot(0, this, [this]() {
++            HWND hwnd = reinterpret_cast<HWND>(winId());
++            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
++        });
++    }
++#endif
++
+     return PlasmaQuick::ContainmentView::event(e);
+ }
+ 
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/panelview.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/panelview.cpp
+index cdb1e5c..ed30de9 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/panelview.cpp
++++ b/\shell/panelview.cpp
+@@ -14,6 +14,10 @@
+ #include "panelconfigview.h"
+ #include "panelshadows_p.h"
+ #include "panelview.h"
++
++#ifdef Q_OS_WIN
++#include <windows.h>
++#endif
+ #include "shellcorona.h"
+ 
+ #include <QAction>
+@@ -1088,6 +1092,9 @@ void PanelView::moveEvent(QMoveEvent *ev)
+     if (m_screenToFollow && !m_screenToFollow->geometry().contains(geometry())) {
+         positionPanel();
+     }
++#ifdef Q_OS_WIN
++    updateWorkArea(isVisible());
++#endif
+ }
+ 
+ void PanelView::keyPressEvent(QKeyEvent *event)
+@@ -1160,8 +1167,55 @@ void PanelView::showEvent(QShowEvent *event)
+ 
+     integrateScreen();
+     updateEditModeLabel();
++
++#ifdef Q_OS_WIN
++    // Like the Windows taskbar, reserve the panel strip in the system work
++    // area so maximized windows do not extend under the panel.
++    updateWorkArea(true);
++#endif
+ }
+ 
++void PanelView::hideEvent(QHideEvent *event)
++{
++    PlasmaQuick::ContainmentView::hideEvent(event);
++
++#ifdef Q_OS_WIN
++    updateWorkArea(false);
++#endif
++}
++
++#ifdef Q_OS_WIN
++void PanelView::updateWorkArea(bool visible)
++{
++    QScreen *scr = screen();
++    if (!scr) {
++        return;
++    }
++    const QRect sr = scr->geometry();
++    RECT wa = {sr.left(), sr.top(), sr.right() + 1, sr.bottom() + 1};
++    if (visible) {
++        const QRect pr = frameGeometry();
++        switch (containment() ? containment()->location() : Plasma::Types::Floating) {
++        case Plasma::Types::LeftEdge:
++            wa.left = pr.right() + 1;
++            break;
++        case Plasma::Types::RightEdge:
++            wa.right = pr.left();
++            break;
++        case Plasma::Types::TopEdge:
++            wa.top = pr.bottom() + 1;
++            break;
++        case Plasma::Types::BottomEdge:
++            wa.bottom = pr.top();
++            break;
++        default:
++            break;
++        }
++    }
++    SystemParametersInfo(SPI_SETWORKAREA, 0, &wa, SPIF_SENDCHANGE);
++}
++#endif
++
+ void PanelView::setScreenToFollow(QScreen *screen)
+ {
+     if (screen == m_screenToFollow) {
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/panelview.h b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/panelview.h
+index 19c5b67..8f67186 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/panelview.h
++++ b/\shell/panelview.h
+@@ -268,9 +268,13 @@ protected:
+ 
+     void resizeEvent(QResizeEvent *ev) override;
+     void showEvent(QShowEvent *event) override;
++    void hideEvent(QHideEvent *event) override;
+     void moveEvent(QMoveEvent *ev) override;
+     void keyPressEvent(QKeyEvent *event) override;
+     bool event(QEvent *e) override;
++#ifdef Q_OS_WIN
++    void updateWorkArea(bool visible);
++#endif
+ 
+ Q_SIGNALS:
+     void alignmentChanged();
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/CMakeLists.txt b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/CMakeLists.txt
+index ed976d2..74716f8 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/CMakeLists.txt
++++ b/\shell/CMakeLists.txt
+@@ -124,6 +124,7 @@ target_link_libraries(plasmashell PRIVATE
+  KF6::GlobalAccel
+  KF6::GuiAddons
+  KF6::I18n
++ KF6::IconThemes
+  KF6::KIOCore
+  KF6::Package
+  KF6::Notifications
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/windowtasksmodel.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/libtaskmanager/windowtasksmodel.cpp
+index 05e9ca0..0254c97 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/windowtasksmodel.cpp
++++ b/\libtaskmanager/windowtasksmodel.cpp
+@@ -15,6 +15,9 @@
+ #if HAVE_X11
+ #include "xwindowtasksmodel.h"
+ #endif
++#ifdef Q_OS_WIN
++#include "windowswindowtasksmodel.h"
++#endif
+ 
+ #include <KWindowSystem>
+ 
+@@ -67,6 +70,12 @@ void WindowTasksModel::Private::initSourceTasksModel()
+     }
+ #endif
+ 
++#ifdef Q_OS_WIN
++    if (!sourceTasksModel) {
++        sourceTasksModel = new WindowsWindowTasksModel();
++    }
++#endif
++
+     q->setSourceModel(sourceTasksModel);
+ }
+ 
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/concatenatetasksproxymodel.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/libtaskmanager/concatenatetasksproxymodel.cpp
+index 27e470f..f978715 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/concatenatetasksproxymodel.cpp
++++ b/\libtaskmanager/concatenatetasksproxymodel.cpp
+@@ -1,11 +1,159 @@
+ /*
+     SPDX-FileCopyrightText: 2016 Eike Hein <hein@kde.org>
++    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
+ 
+     SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
+ */
+-
+ #include "concatenatetasksproxymodel.h"
+ 
++#ifdef Q_OS_WIN
++#include <QPointer>
++
++using namespace TaskManager;
++
++class Q_DECL_HIDDEN ConcatenateTasksProxyModel::Private
++{
++public:
++    Private(ConcatenateTasksProxyModel *q);
++    ~Private();
++
++    int offsetFor(QAbstractItemModel *source) const;
++    QAbstractItemModel *sourceForRow(int row) const;
++
++    ConcatenateTasksProxyModel *const q;
++    QList<QPointer<QAbstractItemModel>> sources;
++};
++
++ConcatenateTasksProxyModel::Private::Private(ConcatenateTasksProxyModel *q)
++    : q(q)
++{
++}
++
++ConcatenateTasksProxyModel::Private::~Private() = default;
++
++int ConcatenateTasksProxyModel::Private::offsetFor(QAbstractItemModel *source) const
++{
++    int offset = 0;
++    for (const QPointer<QAbstractItemModel> &s : sources) {
++        if (s == source) {
++            break;
++        }
++        offset += s->rowCount();
++    }
++    return offset;
++}
++
++QAbstractItemModel *ConcatenateTasksProxyModel::Private::sourceForRow(int row) const
++{
++    for (const QPointer<QAbstractItemModel> &s : sources) {
++        if (row < s->rowCount()) {
++            return s;
++        }
++        row -= s->rowCount();
++    }
++    return nullptr;
++}
++
++ConcatenateTasksProxyModel::ConcatenateTasksProxyModel(QObject *parent)
++    : QAbstractListModel(parent)
++    , d(new Private(this))
++{
++}
++
++ConcatenateTasksProxyModel::~ConcatenateTasksProxyModel()
++{
++    delete d;
++}
++
++void ConcatenateTasksProxyModel::addSourceModel(QAbstractItemModel *sourceModel)
++{
++    if (!sourceModel || d->sources.contains(sourceModel)) {
++        return;
++    }
++    d->sources.append(sourceModel);
++
++    connect(sourceModel, &QAbstractItemModel::rowsInserted, this, [this, sourceModel](const QModelIndex &parent, int first, int last) {
++        Q_UNUSED(parent)
++        const int start = d->offsetFor(sourceModel) + first;
++        beginInsertRows(QModelIndex(), start, start + (last - first));
++        endInsertRows();
++    });
++    connect(sourceModel, &QAbstractItemModel::rowsRemoved, this, [this, sourceModel](const QModelIndex &parent, int first, int last) {
++        Q_UNUSED(parent)
++        const int start = d->offsetFor(sourceModel) + first;
++        beginRemoveRows(QModelIndex(), start, start + (last - first));
++        endRemoveRows();
++    });
++    connect(sourceModel, &QAbstractItemModel::dataChanged, this, [this, sourceModel](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles) {
++        const int start = d->offsetFor(sourceModel) + topLeft.row();
++        dataChanged(index(start), index(start + (bottomRight.row() - topLeft.row())), roles);
++    });
++    connect(sourceModel, &QAbstractItemModel::modelReset, this, [this]() {
++        beginResetModel();
++        endResetModel();
++    });
++
++    if (sourceModel->rowCount() > 0) {
++        const int start = rowCount();
++        beginInsertRows(QModelIndex(), start, start + sourceModel->rowCount() - 1);
++        endInsertRows();
++    }
++}
++
++int ConcatenateTasksProxyModel::rowCount(const QModelIndex &parent) const
++{
++    if (parent.isValid()) {
++        return 0;
++    }
++    int count = 0;
++    for (const QPointer<QAbstractItemModel> &source : d->sources) {
++        count += source->rowCount();
++    }
++    return count;
++}
++
++QVariant ConcatenateTasksProxyModel::data(const QModelIndex &index, int role) const
++{
++    const QModelIndex sourceIndex = mapToSource(index);
++    return sourceIndex.isValid() ? sourceIndex.data(role) : QVariant();
++}
++
++QModelIndex ConcatenateTasksProxyModel::mapToSource(const QModelIndex &index) const
++{
++    if (!index.isValid()) {
++        return {};
++    }
++    int row = index.row();
++    for (const QPointer<QAbstractItemModel> &source : d->sources) {
++        const int count = source->rowCount();
++        if (row < count) {
++            return source->index(row, index.column());
++        }
++        row -= count;
++    }
++    return {};
++}
++
++QModelIndex ConcatenateTasksProxyModel::mapFromSource(const QModelIndex &sourceIndex) const
++{
++    if (!sourceIndex.isValid()) {
++        return {};
++    }
++    for (const QPointer<QAbstractItemModel> &source : d->sources) {
++        if (source == sourceIndex.model()) {
++            return index(d->offsetFor(source) + sourceIndex.row(), sourceIndex.column());
++        }
++    }
++    return {};
++}
++
++QModelIndex ConcatenateTasksProxyModel::mapIfaceToSource(const QModelIndex &index) const
++{
++    return mapToSource(index);
++}
++
++#else // !Q_OS_WIN
++
+ namespace TaskManager
+ {
+ ConcatenateTasksProxyModel::ConcatenateTasksProxyModel(QObject *parent)
+@@ -15,11 +163,37 @@ ConcatenateTasksProxyModel::ConcatenateTasksProxyModel(QObject *parent)
+ 
+ ConcatenateTasksProxyModel::~ConcatenateTasksProxyModel() = default;
+ 
++void ConcatenateTasksProxyModel::addSourceModel(QAbstractItemModel *sourceModel)
++{
++    QConcatenateTablesProxyModel::addSourceModel(sourceModel);
++}
++
++QVariant ConcatenateTasksProxyModel::data(const QModelIndex &index, int role) const
++{
++    return QConcatenateTablesProxyModel::data(index, role);
++}
++
++int ConcatenateTasksProxyModel::rowCount(const QModelIndex &parent) const
++{
++    return QConcatenateTablesProxyModel::rowCount(parent);
++}
++
++QModelIndex ConcatenateTasksProxyModel::mapToSource(const QModelIndex &index) const
++{
++    return QConcatenateTablesProxyModel::mapToSource(index);
++}
++
++QModelIndex ConcatenateTasksProxyModel::mapFromSource(const QModelIndex &sourceIndex) const
++{
++    return QConcatenateTablesProxyModel::mapFromSource(sourceIndex);
++}
++
+ QModelIndex ConcatenateTasksProxyModel::mapIfaceToSource(const QModelIndex &index) const
+ {
+     return mapToSource(index);
+ }
+-
+ }
+ 
++#endif
++
+ #include "moc_concatenatetasksproxymodel.cpp"
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/concatenatetasksproxymodel.h b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/libtaskmanager/concatenatetasksproxymodel.h
+index 02a49b1..0e93938 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/concatenatetasksproxymodel.h
++++ b/\libtaskmanager/concatenatetasksproxymodel.h
+@@ -8,7 +8,11 @@
+ 
+ #include "abstracttasksproxymodeliface.h"
+ 
++#ifdef Q_OS_WIN
++#include <QAbstractListModel>
++#else
+ #include <QConcatenateTablesProxyModel>
++#endif
+ 
+ #include "taskmanager_export.h"
+ 
+@@ -23,7 +27,11 @@ namespace TaskManager
+  * @author Eike Hein <hein@kde.org>
+  **/
+ 
++#ifdef Q_OS_WIN
++class TASKMANAGER_EXPORT ConcatenateTasksProxyModel : public QAbstractListModel, public AbstractTasksProxyModelIface
++#else
+ class TASKMANAGER_EXPORT ConcatenateTasksProxyModel : public QConcatenateTablesProxyModel, public AbstractTasksProxyModelIface
++#endif
+ {
+     Q_OBJECT
+ 
+@@ -31,8 +39,19 @@ public:
+     explicit ConcatenateTasksProxyModel(QObject *parent = nullptr);
+     ~ConcatenateTasksProxyModel() override;
+ 
++    void addSourceModel(QAbstractItemModel *sourceModel);
++
++    QVariant data(const QModelIndex &index, int role) const override;
++    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
++    QModelIndex mapToSource(const QModelIndex &index) const;
++    QModelIndex mapFromSource(const QModelIndex &sourceIndex) const;
++
+ protected:
+     QModelIndex mapIfaceToSource(const QModelIndex &index) const override;
++
++private:
++    class Private;
++    Private *const d;
+ };
+ 
+ }
+diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/CMakeLists.txt b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/libtaskmanager/CMakeLists.txt
+index 4c284a7..1bd1112 100644
+--- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/CMakeLists.txt
++++ b/\libtaskmanager/CMakeLists.txt
+@@ -29,6 +29,13 @@ if (HAVE_X11)
+     )
+ endif()
+ 
++if (WIN32)
++    set(taskmanager_LIB_SRCS
++        ${taskmanager_LIB_SRCS}
++        windowswindowtasksmodel.cpp
++    )
++endif()
++
+ if (WITH_WAYLAND)
+     set(taskmanager_LIB_SRCS
+         ${taskmanager_LIB_SRCS}
+@@ -94,6 +101,10 @@ if (HAVE_X11)
+     target_link_libraries(taskmanager PRIVATE X11::X11)
+ endif()
+ 
++if (WIN32)
++    target_link_libraries(taskmanager PRIVATE dwmapi)
++endif()
++
+ set_target_properties(taskmanager PROPERTIES
+                       VERSION ${PROJECT_VERSION}
+                       SOVERSION 6
+diff --git a/libtaskmanager/windowswindowtasksmodel.h b/libtaskmanager/windowswindowtasksmodel.h
+new file mode 100644
+--- /dev/null
++++ b/libtaskmanager/windowswindowtasksmodel.h
+@@ -0,0 +1,44 @@
++/*
++    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
++
++    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
++*/
++#pragma once
++
++#include "abstractwindowtasksmodel.h"
++
++#include "taskmanager_export.h"
++
++#include <QUrl>
++
++/**
++ * A window tasks model based on the native Win32 window management API.
++ */
++class Q_DECL_HIDDEN WindowsWindowTasksModel : public TaskManager::AbstractWindowTasksModel
++{
++    Q_OBJECT
++
++public:
++    explicit WindowsWindowTasksModel(QObject *parent = nullptr);
++    ~WindowsWindowTasksModel() override;
++
++    QVariant data(const QModelIndex &index, int role) const override;
++    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
++
++    void requestActivate(const QModelIndex &index) override;
++    void requestNewInstance(const QModelIndex &index) override;
++    void requestClose(const QModelIndex &index) override;
++    void requestMove(const QModelIndex &index) override;
++    void requestResize(const QModelIndex &index) override;
++    void requestToggleMinimized(const QModelIndex &index) override;
++    void requestToggleMaximized(const QModelIndex &index) override;
++    void requestToggleKeepAbove(const QModelIndex &index) override;
++    void requestToggleKeepBelow(const QModelIndex &index) override;
++    void requestToggleFullScreen(const QModelIndex &index) override;
++    void requestToggleShaded(const QModelIndex &index) override;
++    void requestToggleNoBorder(const QModelIndex &index) override;
++
++private:
++    class Private;
++    Private *const d;
++};
+
+diff --git a/libtaskmanager/windowswindowtasksmodel.cpp b/libtaskmanager/windowswindowtasksmodel.cpp
+new file mode 100644
+--- /dev/null
++++ b/libtaskmanager/windowswindowtasksmodel.cpp
+@@ -0,0 +1,467 @@
++/*
++    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
++
++    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
++*/
++#include "windowswindowtasksmodel.h"
++
++#include <KWindowInfo>
++#include <KWindowSystem>
++
++#include <QDateTime>
++#include <QFileInfo>
++#include <QGuiApplication>
++#include <QIcon>
++#include <QPointer>
++#include <QProcess>
++#include <QScreen>
++#include <QSet>
++#include <QTimer>
++#include <QUrl>
++
++#include <windows.h>
++#include <dwmapi.h>
++#include <shellapi.h>
++
++using namespace TaskManager;
++
++namespace
++{
++bool isSameWindowList(const QList<WId> &a, const QList<WId> &b)
++{
++    if (a.size() != b.size()) {
++        return false;
++    }
++    for (int i = 0; i < a.size(); ++i) {
++        if (a.at(i) != b.at(i)) {
++            return false;
++        }
++    }
++    return true;
++}
++
++bool isTaskbarCandidate(HWND hwnd)
++{
++    if (!IsWindow(hwnd) || !IsWindowVisible(hwnd)) {
++        return false;
++    }
++    if (GetAncestor(hwnd, GA_ROOT) != hwnd) {
++        return false;
++    }
++    if (GetWindow(hwnd, GW_OWNER) != nullptr) {
++        return false;
++    }
++    const LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
++    if (exStyle & WS_EX_TOOLWINDOW) {
++        return false;
++    }
++    DWORD cloaked = 0;
++    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked) {
++        return false;
++    }
++    return true;
++}
++
++BOOL CALLBACK enumWindowsProc(HWND hwnd, LPARAM lParam)
++{
++    auto *list = reinterpret_cast<QList<WId> *>(lParam);
++    if (isTaskbarCandidate(hwnd)) {
++        list->append(reinterpret_cast<WId>(hwnd));
++    }
++    return TRUE;
++}
++
++QList<WId> windowList()
++{
++    QList<WId> list;
++    EnumWindows(enumWindowsProc, reinterpret_cast<LPARAM>(&list));
++    return list;
++}
++
++QIcon iconForWindow(HWND hwnd)
++{
++    HICON icon = nullptr;
++    SendMessageTimeoutW(hwnd, WM_GETICON, ICON_SMALL2, 0, SMTO_ABORTIFHUNG, 500, reinterpret_cast<DWORD_PTR *>(&icon));
++    if (!icon) {
++        icon = reinterpret_cast<HICON>(GetClassLongPtrW(hwnd, GCLP_HICON));
++    }
++    if (!icon) {
++        // Fall back to the executable's icon.
++        DWORD pid = 0;
++        GetWindowThreadProcessId(hwnd, &pid);
++        HANDLE process = pid ? OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) : nullptr;
++        wchar_t buf[MAX_PATH] = {};
++        DWORD size = MAX_PATH;
++        if (process && QueryFullProcessImageNameW(process, 0, buf, &size)) {
++            SHFILEINFOW shfi = {};
++            if (SHGetFileInfoW(buf, 0, &shfi, sizeof(shfi), SHGFI_ICON | SHGFI_SMALLICON)) {
++                icon = shfi.hIcon;
++            }
++        }
++        if (process) {
++            CloseHandle(process);
++        }
++    }
++
++    QIcon result;
++    if (icon) {
++        result = QIcon(QPixmap::fromImage(QImage::fromHICON(icon)));
++        DestroyIcon(icon);
++    }
++    return result;
++}
++
++QString exePathForWindow(WId id)
++{
++    DWORD pid = 0;
++    GetWindowThreadProcessId(reinterpret_cast<HWND>(id), &pid);
++    if (!pid) {
++        return {};
++    }
++    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
++    if (!process) {
++        return {};
++    }
++    wchar_t buf[MAX_PATH] = {};
++    DWORD size = MAX_PATH;
++    QString result;
++    if (QueryFullProcessImageNameW(process, 0, buf, &size)) {
++        result = QString::fromWCharArray(buf, size);
++    }
++    CloseHandle(process);
++    return result;
++}
++}
++
++class Q_DECL_HIDDEN WindowsWindowTasksModel::Private
++{
++public:
++    Private(WindowsWindowTasksModel *q);
++    ~Private();
++
++    void reload(bool structural);
++    void refreshData();
++
++    WindowsWindowTasksModel *const q;
++    QTimer *timer = nullptr;
++    QList<WId> windows;
++    WId activeWindow = 0;
++};
++
++WindowsWindowTasksModel::Private::Private(WindowsWindowTasksModel *q)
++    : q(q)
++{
++    timer = new QTimer(q);
++    timer->setInterval(500);
++    QObject::connect(timer, &QTimer::timeout, q, [this]() {
++        const HWND foreground = GetForegroundWindow();
++        const WId fg = foreground ? reinterpret_cast<WId>(foreground) : 0;
++        if (fg != activeWindow) {
++            activeWindow = fg;
++            refreshData();
++        }
++        reload(false);
++    });
++    timer->start();
++    // Delay the initial load until after TasksModel has added us to its
++    // QConcatenateTablesProxyModel: it builds its row mapping from
++    // rowsInserted signals, so rows that already exist at addSourceModel()
++    // time would never get mapped (their data() would read empty).
++    QTimer::singleShot(0, q, [this]() {
++        reload(true);
++    });
++}
++
++WindowsWindowTasksModel::Private::~Private() = default;
++
++void WindowsWindowTasksModel::Private::reload(bool structural)
++{
++    // EnumWindows via our own taskbar-candidate filter; drop our own shell
++    // windows too (KWindowSystem has no stackingOrder on Windows).
++    // NOTE: incremental updates only - QConcatenateTablesProxyModel in
++    // TasksModel breaks its data forwarding on beginResetModel().
++    const DWORD shellPid = GetCurrentProcessId();
++    QList<WId> newWindows;
++    const QList<WId> all = windowList();
++    newWindows.reserve(all.size());
++    for (const WId id : all) {
++        DWORD pid = 0;
++        GetWindowThreadProcessId(reinterpret_cast<HWND>(id), &pid);
++        if (pid != shellPid) {
++            newWindows.append(id);
++        }
++    }
++
++    if (!isSameWindowList(newWindows, windows)) {
++        const QSet<WId> oldSet(windows.begin(), windows.end());
++        const QSet<WId> newSet(newWindows.begin(), newWindows.end());
++
++        for (int i = windows.size() - 1; i >= 0; --i) {
++            if (!newSet.contains(windows.at(i))) {
++                q->beginRemoveRows(QModelIndex(), i, i);
++                windows.removeAt(i);
++                q->endRemoveRows();
++            }
++        }
++        for (int i = 0; i < newWindows.size(); ++i) {
++            if (!oldSet.contains(newWindows.at(i))) {
++                q->beginInsertRows(QModelIndex(), i, i);
++                windows.insert(i, newWindows.at(i));
++                q->endInsertRows();
++            }
++        }
++    }
++
++    if (windows.size() != newWindows.size()) {
++        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG WindowsWindowTasksModel rowCount=") << newWindows.count();
++    }
++
++    refreshData();
++}
++
++void WindowsWindowTasksModel::Private::refreshData()
++{
++    const HWND foreground = GetForegroundWindow();
++    activeWindow = foreground ? reinterpret_cast<WId>(foreground) : 0;
++    if (q->rowCount() > 0) {
++        q->dataChanged(q->index(0), q->index(q->rowCount() - 1));
++    }
++}
++
++WindowsWindowTasksModel::WindowsWindowTasksModel(QObject *parent)
++    : AbstractWindowTasksModel(parent)
++    , d(new Private(this))
++{
++    qWarning().noquote() << QStringLiteral("PLASMA-DEBUG WindowsWindowTasksModel created, windows=") << d->windows.count();
++    QTimer::singleShot(3000, this, [this]() {
++        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG model row0: title=") << data(index(0), Qt::DisplayRole).toString()
++                             << QStringLiteral("hwnd=") << d->windows.value(0)
++                             << QStringLiteral("onAllVD=") << data(index(0), AbstractTasksModel::IsOnAllVirtualDesktops).toBool()
++                             << QStringLiteral("skipTB=") << data(index(0), AbstractTasksModel::SkipTaskbar).toBool();
++    });
++}
++
++WindowsWindowTasksModel::~WindowsWindowTasksModel()
++{
++    delete d;
++}
++
++int WindowsWindowTasksModel::rowCount(const QModelIndex &parent) const
++{
++    return parent.isValid() ? 0 : d->windows.count();
++}
++
++QVariant WindowsWindowTasksModel::data(const QModelIndex &index, int role) const
++{
++    if (!index.isValid() || index.row() >= d->windows.count()) {
++        return {};
++    }
++    const WId wid = d->windows.at(index.row());
++    const HWND hwnd = reinterpret_cast<HWND>(wid);
++
++    switch (role) {
++    case Qt::DisplayRole: {
++        wchar_t buf[512] = {};
++        const int len = GetWindowTextW(hwnd, buf, 512);
++        return QString::fromWCharArray(buf, len);
++    }
++    case Qt::DecorationRole:
++        return iconForWindow(hwnd);
++    case AbstractTasksModel::AppId:
++    case AbstractTasksModel::AppName: {
++        const QString exe = exePathForWindow(wid);
++        return exe.isEmpty() ? QString() : QFileInfo(exe).completeBaseName();
++    }
++    case AbstractTasksModel::GenericName:
++        return {};
++    case AbstractTasksModel::LauncherUrl:
++    case AbstractTasksModel::LauncherUrlWithoutIcon: {
++        const QString exe = exePathForWindow(wid);
++        return exe.isEmpty() ? QUrl() : QUrl::fromLocalFile(exe);
++    }
++    case AbstractTasksModel::WinIdList:
++        return QVariantList() << wid;
++    case AbstractTasksModel::MimeType:
++        return QStringLiteral("windowsystem/winid");
++    case AbstractTasksModel::MimeData:
++        return QByteArray(reinterpret_cast<const char *>(&wid), sizeof(wid));
++    case AbstractTasksModel::IsWindow:
++        return true;
++    case AbstractTasksModel::IsStartup:
++    case AbstractTasksModel::IsLauncher:
++        return false;
++    case AbstractTasksModel::IsGroupParent:
++        return false;
++    case AbstractTasksModel::IsGroupable:
++        return false;
++    case AbstractTasksModel::IsActive:
++        return wid == d->activeWindow;
++    case AbstractTasksModel::IsClosable:
++        return true;
++    case AbstractTasksModel::IsMovable:
++    case AbstractTasksModel::IsResizable:
++        return false;
++    case AbstractTasksModel::IsMaximizable:
++        return true;
++    case AbstractTasksModel::IsMaximized:
++        return IsZoomed(hwnd) != FALSE;
++    case AbstractTasksModel::IsMinimizable:
++        return true;
++    case AbstractTasksModel::IsMinimized:
++        return IsIconic(hwnd) != FALSE;
++    case AbstractTasksModel::IsKeepAbove:
++    case AbstractTasksModel::IsKeepBelow:
++        return false;
++    case AbstractTasksModel::IsFullScreenable:
++        return false;
++    case AbstractTasksModel::IsFullScreen: {
++        RECT r = {};
++        GetWindowRect(hwnd, &r);
++        MONITORINFO mi = {};
++        mi.cbSize = sizeof(mi);
++        HMONITOR mon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
++        GetMonitorInfo(mon, &mi);
++        return r.left == mi.rcMonitor.left && r.top == mi.rcMonitor.top && r.right == mi.rcMonitor.right && r.bottom == mi.rcMonitor.bottom;
++    }
++    case AbstractTasksModel::IsShadeable:
++    case AbstractTasksModel::IsShaded:
++        return false;
++    case AbstractTasksModel::IsVirtualDesktopsChangeable:
++        return false;
++    case AbstractTasksModel::VirtualDesktops:
++        return QVariantList();
++    case AbstractTasksModel::IsOnAllVirtualDesktops:
++        return true;
++    case AbstractTasksModel::Geometry: {
++        RECT r = {};
++        GetWindowRect(hwnd, &r);
++        return QRect(r.left, r.top, r.right - r.left, r.bottom - r.top);
++    }
++    case AbstractTasksModel::ScreenGeometry: {
++        RECT wnd = {};
++        GetWindowRect(hwnd, &wnd);
++        const QPoint physCenter((wnd.left + wnd.right) / 2, (wnd.top + wnd.bottom) / 2);
++        for (QScreen *screen : QGuiApplication::screens()) {
++            const QRect phys(screen->geometry().topLeft() * screen->devicePixelRatio(),
++                             screen->geometry().size() * screen->devicePixelRatio());
++            if (phys.contains(physCenter)) {
++                return screen->geometry();
++            }
++        }
++        return {};
++    }
++    case AbstractTasksModel::Activities:
++        return QStringList();
++    case AbstractTasksModel::IsDemandingAttention:
++        return false;
++    case AbstractTasksModel::SkipTaskbar:
++    case AbstractTasksModel::SkipPager:
++        return false;
++    case AbstractTasksModel::AppPid: {
++        DWORD pid = 0;
++        GetWindowThreadProcessId(hwnd, &pid);
++        return static_cast<qint64>(pid);
++    }
++    case AbstractTasksModel::StackingOrder:
++        return index.row();
++    case AbstractTasksModel::LastActivated:
++        return wid == d->activeWindow ? QDateTime::currentMSecsSinceEpoch() : 0;
++    case AbstractTasksModel::ApplicationMenuServiceName:
++    case AbstractTasksModel::ApplicationMenuObjectPath:
++        return {};
++    case AbstractTasksModel::IsHidden:
++        return !IsWindowVisible(hwnd);
++    case AbstractTasksModel::CanLaunchNewInstance:
++        return !exePathForWindow(wid).isEmpty();
++    case AbstractTasksModel::HasNoBorder:
++    case AbstractTasksModel::CanSetNoBorder:
++    case AbstractTasksModel::IsExcludedFromCapture:
++        return false;
++    default:
++        return {};
++    }
++}
++
++void WindowsWindowTasksModel::requestActivate(const QModelIndex &index)
++{
++    if (!index.isValid() || index.row() >= d->windows.count()) {
++        return;
++    }
++    const HWND hwnd = reinterpret_cast<HWND>(d->windows.at(index.row()));
++    if (IsIconic(hwnd)) {
++        ShowWindow(hwnd, SW_RESTORE);
++    }
++    SetForegroundWindow(hwnd);
++}
++
++void WindowsWindowTasksModel::requestNewInstance(const QModelIndex &index)
++{
++    if (!index.isValid() || index.row() >= d->windows.count()) {
++        return;
++    }
++    const QString exe = exePathForWindow(d->windows.at(index.row()));
++    if (!exe.isEmpty()) {
++        QProcess::startDetached(exe, {});
++    }
++}
++
++void WindowsWindowTasksModel::requestClose(const QModelIndex &index)
++{
++    if (!index.isValid() || index.row() >= d->windows.count()) {
++        return;
++    }
++    PostMessageW(reinterpret_cast<HWND>(d->windows.at(index.row())), WM_CLOSE, 0, 0);
++}
++
++void WindowsWindowTasksModel::requestMove(const QModelIndex &index)
++{
++    Q_UNUSED(index)
++}
++
++void WindowsWindowTasksModel::requestResize(const QModelIndex &index)
++{
++    Q_UNUSED(index)
++}
++
++void WindowsWindowTasksModel::requestToggleMinimized(const QModelIndex &index)
++{
++    if (!index.isValid() || index.row() >= d->windows.count()) {
++        return;
++    }
++    HWND hwnd = reinterpret_cast<HWND>(d->windows.at(index.row()));
++    ShowWindow(hwnd, IsIconic(hwnd) ? SW_RESTORE : SW_MINIMIZE);
++}
++
++void WindowsWindowTasksModel::requestToggleMaximized(const QModelIndex &index)
++{
++    if (!index.isValid() || index.row() >= d->windows.count()) {
++        return;
++    }
++    HWND hwnd = reinterpret_cast<HWND>(d->windows.at(index.row()));
++    ShowWindow(hwnd, IsZoomed(hwnd) ? SW_RESTORE : SW_MAXIMIZE);
++}
++
++void WindowsWindowTasksModel::requestToggleKeepAbove(const QModelIndex &index)
++{
++    Q_UNUSED(index)
++}
++
++void WindowsWindowTasksModel::requestToggleKeepBelow(const QModelIndex &index)
++{
++    Q_UNUSED(index)
++}
++
++void WindowsWindowTasksModel::requestToggleFullScreen(const QModelIndex &index)
++{
++    Q_UNUSED(index)
++}
++
++void WindowsWindowTasksModel::requestToggleShaded(const QModelIndex &index)
++{
++    Q_UNUSED(index)
++}
++
++void WindowsWindowTasksModel::requestToggleNoBorder(const QModelIndex &index)
++{
++    Q_UNUSED(index)
++}
+

@@ -15,10 +15,18 @@ index a671cd9..f16ce37 100644
       * \property PlasmaQuick::Dialog::margins
       * Margins of the dialog around the mainItem.
 diff --git a/src/plasmaquick/dialog.cpp b/src/plasmaquick/dialog.cpp
-index 729325a..daca1a3 100644
+index 729325a..2b44cf9 100644
 --- a/src/plasmaquick/dialog.cpp
 +++ b/\src/plasmaquick/dialog.cpp
-@@ -24,6 +24,10 @@
+@@ -15,6 +15,7 @@
+ #include "debug_p.h"
+ #include "dialogbackground_p.h"
+ #include "dialogshadows_p.h"
++#include "popupplasmawindow.h"
+ #include "quickviewsharedengine.h"
+ 
+ #include <QLayout>
+@@ -24,6 +25,10 @@
  #include <QQuickItem>
  #include <QScreen>
  
@@ -29,7 +37,7 @@ index 729325a..daca1a3 100644
  #include <KWindowInfo>
  #include <KWindowSystem>
  #ifndef Q_OS_WIN
-@@ -291,12 +295,19 @@ void DialogPrivate::updateVisibility(bool visible)
+@@ -291,12 +296,21 @@ void DialogPrivate::updateVisibility(bool visible)
          } else {
              if (!cachedGeometry.isNull()) {
                  q->resize(cachedGeometry.size());
@@ -42,7 +50,9 @@ index 729325a..daca1a3 100644
 +            // Windows: position the popup even on first show (upstream skipped
 +            // positioning when cachedGeometry was empty, leaving the window at
 +            // the OS default - centered on screen).
-+            slotWindowPositionChanged();
++            // Note: do NOT call slotWindowPositionChanged() here - it resizes
++            // mainItem to the window size, squashing e.g. the widget explorer
++            // when the window is still at its initial size on first show.
 +            if (visualParent) {
 +                q->setPosition(q->popupPosition(visualParent, q->size()));
 +            } else {
@@ -54,7 +64,16 @@ index 729325a..daca1a3 100644
  
              if (mainItem) {
                  syncToMainItemSize();
-@@ -1078,16 +1089,40 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
+@@ -936,6 +950,8 @@ Dialog::Dialog(QQuickItem *parent)
+     // Given dialogs are skip task bar and don't have a decoration
+     // minimizing them using e.g. "minimize all" should just close them
+     connect(this, &QWindow::windowStateChanged, this, [this](Qt::WindowState newState) {
++        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG windowStateChanged class=") << metaObject()->className()
++                             << QStringLiteral("obj=") << objectName() << QStringLiteral("state=") << int(newState);
+         if (newState == Qt::WindowMinimized) {
+             setVisible(false);
+         }
+@@ -1078,16 +1094,40 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
          }
      }
  
@@ -96,7 +115,7 @@ index 729325a..daca1a3 100644
  
      if (KWindowSystem::isPlatformX11()) {
          // on X11 we also consider windows with the type Dock
-@@ -1101,7 +1136,7 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
+@@ -1101,7 +1141,7 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
      } else {
          parentGeometryBounds = item->mapRectToScene(item->boundingRect()).toRect();
          if (item->window()) {
@@ -105,16 +124,20 @@ index 729325a..daca1a3 100644
              pos = parentGeometryBounds.topLeft();
          }
      }
-@@ -1567,6 +1602,13 @@ void Dialog::classBegin()
+@@ -1567,6 +1607,17 @@ void Dialog::classBegin()
  void Dialog::componentComplete()
  {
      d->componentComplete = true;
 +#ifdef Q_OS_WIN
 +    // Windows: without an explicit position the OS would place the popup
 +    // centered on first show (visible as a "popup flashes centered, then
-+    // snaps to the anchor" glitch). Park the window off-screen; the anchor
++    // snaps to the anchor" glitch). Park the popup off-screen; the anchor
 +    // positioning in showEvent/updateVisibility runs right after.
-+    setPosition(QPoint(-32000, -32000));
++    // Only for popups: the desktop/panel windows are Dialogs too and must
++    // keep their real geometry (edit mode re-shows the desktop view).
++    if (qobject_cast<PopupPlasmaWindow *>(this)) {
++        setPosition(QPoint(-32000, -32000));
++    }
 +#endif
      QQuickWindow::setVisible(d->visible);
      d->updateTheme();

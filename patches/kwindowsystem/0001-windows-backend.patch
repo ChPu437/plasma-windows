@@ -1,27 +1,7 @@
-diff --git "a/CMakeLists.txt" "b/CMakeLists.txt"
-index 2c21df5..40bd8cf 100644
---- "a/CMakeLists.txt"
-+++ "b/CMakeLists.txt"
-@@ -53,10 +53,14 @@ endif()
- 
- option(KWINDOWSYSTEM_X11 "Build X11 support" ON)
- option(KWINDOWSYSTEM_WAYLAND "Build Wayland support" ON)
-+option(KWINDOWSYSTEM_WINDOWS "Build Windows support" OFF)
- 
- if (WIN32 OR APPLE OR ANDROID OR HAIKU)
-     set(KWINDOWSYSTEM_X11 OFF)
-     set(KWINDOWSYSTEM_WAYLAND OFF)
-+    if (WIN32)
-+        set(KWINDOWSYSTEM_WINDOWS ON)
-+    endif()
- endif()
- 
- if (KWINDOWSYSTEM_X11)
-
-diff --git "a/src/CMakeLists.txt" "b/src/CMakeLists.txt"
+a/src/CMakeLists.txt
 index af2e87c..d810a64 100644
---- "a/src/CMakeLists.txt"
-+++ "b/src/CMakeLists.txt"
+a/src/CMakeLists.txt
+b/src/CMakeLists.txt
 @@ -80,6 +80,14 @@ if (KWINDOWSYSTEM_WAYLAND)
      target_sources(KF6WindowSystem PRIVATE kwaylandextras.cpp)
  endif()
@@ -62,142 +42,10 @@ index af2e87c..d810a64 100644
      DESTINATION
          ${KDE_INSTALL_INCLUDEDIR_KF}/KWindowSystem/private
      COMPONENT
-
-diff --git "a/src/kwindowsystem.h" "b/src/kwindowsystem.h"
-index fcc5021..43fe5e4 100644
---- "a/src/kwindowsystem.h"
-+++ "b/src/kwindowsystem.h"
-@@ -165,6 +165,7 @@ public:
-         Unknown,
-         X11,
-         Wayland,
-+        Windows,
-     };
-     Q_ENUM(Platform)
-     /*!
-@@ -192,6 +193,13 @@ public:
-      **/
-     static bool isPlatformWayland();
- 
-+    /*!
-+     * Returns whether the Platform is Windows.
-+     * \sa platform
-+     * \since 6.28
-+     **/
-+    static bool isPlatformWindows();
-+
-     /*!
-      * Sets the \a token that will be used when activateWindow is called next
-      *
-
-diff --git "a/src/kwindowsystem.cpp" "b/src/kwindowsystem.cpp"
-index cbc4bb8..bccf8de 100644
---- "a/src/kwindowsystem.cpp"
-+++ "b/src/kwindowsystem.cpp"
-@@ -144,6 +144,9 @@ static inline KWindowSystem::Platform initPlatform()
-     if (platformName.startsWith(QLatin1String("wayland"), Qt::CaseInsensitive)) {
-         return KWindowSystem::Platform::Wayland;
-     }
-+    if (platformName == QLatin1String("windows")) {
-+        return KWindowSystem::Platform::Windows;
-+    }
-     return KWindowSystem::Platform::Unknown;
- }
- 
-@@ -163,6 +166,11 @@ bool KWindowSystem::isPlatformWayland()
-     return platform() == Platform::Wayland;
- }
- 
-+bool KWindowSystem::isPlatformWindows()
-+{
-+    return platform() == Platform::Windows;
-+}
-+
- void KWindowSystem::updateStartupId(QWindow *window)
- {
-     // clang-format off
-
-diff --git "a/src/kwindowsystemplugininterface_p.h" "b/src/kwindowsystemplugininterface_p.h"
-index c2d583f..899d4e4 100644
---- "a/src/kwindowsystemplugininterface_p.h"
-+++ "b/src/kwindowsystemplugininterface_p.h"
-@@ -14,6 +14,7 @@ class KWindowEffectsPrivate;
- class KWindowShadowPrivate;
- class KWindowShadowTilePrivate;
- class KWindowSystemPrivate;
-+class KWindowSystemWindowsPrivate;
- 
- #define KWindowSystemPluginInterface_iid "org.kde.kwindowsystem.KWindowSystemPluginInterface"
- 
-@@ -28,6 +29,7 @@ public:
-     virtual KWindowSystemPrivate *createWindowSystem();
-     virtual KWindowShadowPrivate *createWindowShadow();
-     virtual KWindowShadowTilePrivate *createWindowShadowTile();
-+    virtual KWindowSystemWindowsPrivate *createWindowList();
- };
- 
- Q_DECLARE_INTERFACE(KWindowSystemPluginInterface, KWindowSystemPluginInterface_iid)
-
-diff --git "a/src/kwindowsystemplugininterface.cpp" "b/src/kwindowsystemplugininterface.cpp"
-index 39aeaf2..6d63af3 100644
---- "a/src/kwindowsystemplugininterface.cpp"
-+++ "b/src/kwindowsystemplugininterface.cpp"
-@@ -35,4 +35,9 @@ KWindowShadowTilePrivate *KWindowSystemPluginInterface::createWindowShadowTile()
-     return nullptr;
- }
- 
-+KWindowSystemWindowsPrivate *KWindowSystemPluginInterface::createWindowList()
-+{
-+    return nullptr;
-+}
-+
- #include "moc_kwindowsystemplugininterface_p.cpp"
-
-diff --git "a/src/pluginwrapper_p.h" "b/src/pluginwrapper_p.h"
-index ce365ab..289ed47 100644
---- "a/src/pluginwrapper_p.h"
-+++ "b/src/pluginwrapper_p.h"
-@@ -14,6 +14,7 @@ class KWindowShadowPrivate;
- class KWindowShadowTilePrivate;
- class KWindowSystemPluginInterface;
- class KWindowSystemPrivate;
-+class KWindowSystemWindowsPrivate;
- 
- class KWindowSystemPluginWrapper
- {
-@@ -26,6 +27,7 @@ public:
-     KWindowSystemPrivate *createWindowSystem() const;
-     KWindowShadowPrivate *createWindowShadow() const;
-     KWindowShadowTilePrivate *createWindowShadowTile() const;
-+    KWindowSystemWindowsPrivate *createWindowList() const;
- 
- private:
-     std::unique_ptr<KWindowSystemPluginInterface> m_plugin;
-
-diff --git "a/src/pluginwrapper.cpp" "b/src/pluginwrapper.cpp"
-index 87e7cb8..a7fbf1b 100644
---- "a/src/pluginwrapper.cpp"
-+++ "b/src/pluginwrapper.cpp"
-@@ -144,6 +144,14 @@ KWindowShadowPrivate *KWindowSystemPluginWrapper::createWindowShadow() const
-     return p;
- }
- 
-+KWindowSystemWindowsPrivate *KWindowSystemPluginWrapper::createWindowList() const
-+{
-+    if (m_plugin) {
-+        return m_plugin->createWindowList();
-+    }
-+    return nullptr;
-+}
-+
- KWindowShadowTilePrivate *KWindowSystemPluginWrapper::createWindowShadowTile() const
- {
-     KWindowShadowTilePrivate *p = nullptr;
-
-diff --git "a/src/kwindowinfo.cpp" "b/src/kwindowinfo.cpp"
+a/src/kwindowinfo.cpp
 index fb89fc3..73040b2 100644
---- "a/src/kwindowinfo.cpp"
-+++ "b/src/kwindowinfo.cpp"
+a/src/kwindowinfo.cpp
+b/src/kwindowinfo.cpp
 @@ -7,11 +7,15 @@
  #include "kwindowinfo.h"
  #include "kwindowsystem.h"
@@ -994,116 +842,97 @@ index fb89fc3..73040b2 100644
 +    return d->m_pid;
 +#endif
  }
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/kwindowsystemwindows.h" "b/src/kwindowsystemwindows.h"
-new file mode 100644
-index 0000000..58386f8
---- /dev/null
-+++ "b/src/kwindowsystemwindows.h"
-@@ -0,0 +1,49 @@
-+/*
-+    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
+a/src/kwindowsystem.cpp
+index cbc4bb8..bccf8de 100644
+a/src/kwindowsystem.cpp
+b/src/kwindowsystem.cpp
+@@ -144,6 +144,9 @@ static inline KWindowSystem::Platform initPlatform()
+     if (platformName.startsWith(QLatin1String("wayland"), Qt::CaseInsensitive)) {
+         return KWindowSystem::Platform::Wayland;
+     }
++    if (platformName == QLatin1String("windows")) {
++        return KWindowSystem::Platform::Windows;
++    }
+     return KWindowSystem::Platform::Unknown;
+ }
+ 
+@@ -163,6 +166,11 @@ bool KWindowSystem::isPlatformWayland()
+     return platform() == Platform::Wayland;
+ }
+ 
++bool KWindowSystem::isPlatformWindows()
++{
++    return platform() == Platform::Windows;
++}
 +
-+    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
-+*/
-+#ifndef KWINDOWSYSTEMWINDOWS_H
-+#define KWINDOWSYSTEMWINDOWS_H
+ void KWindowSystem::updateStartupId(QWindow *window)
+ {
+     // clang-format off
+a/src/kwindowsystem.h
+index fcc5021..43fe5e4 100644
+a/src/kwindowsystem.h
+b/src/kwindowsystem.h
+@@ -165,6 +165,7 @@ public:
+         Unknown,
+         X11,
+         Wayland,
++        Windows,
+     };
+     Q_ENUM(Platform)
+     /*!
+@@ -192,6 +193,13 @@ public:
+      **/
+     static bool isPlatformWayland();
+ 
++    /*!
++     * Returns whether the Platform is Windows.
++     * \sa platform
++     * \since 6.28
++     **/
++    static bool isPlatformWindows();
 +
-+#include <QObject>
-+#include <QList>
-+#include <QRect>
+     /*!
+      * Sets the \a token that will be used when activateWindow is called next
+      *
+a/src/kwindowsystemplugininterface.cpp
+index 39aeaf2..6d63af3 100644
+a/src/kwindowsystemplugininterface.cpp
+b/src/kwindowsystemplugininterface.cpp
+@@ -35,4 +35,9 @@ KWindowShadowTilePrivate *KWindowSystemPluginInterface::createWindowShadowTile()
+     return nullptr;
+ }
+ 
++KWindowSystemWindowsPrivate *KWindowSystemPluginInterface::createWindowList()
++{
++    return nullptr;
++}
 +
-+#include <QWidgetList> //For WId
-+#include <kwindowsystem_export.h>
-+
+ #include "moc_kwindowsystemplugininterface_p.cpp"
+a/src/kwindowsystemplugininterface_p.h
+index c2d583f..899d4e4 100644
+a/src/kwindowsystemplugininterface_p.h
+b/src/kwindowsystemplugininterface_p.h
+@@ -14,6 +14,7 @@ class KWindowEffectsPrivate;
+ class KWindowShadowPrivate;
+ class KWindowShadowTilePrivate;
+ class KWindowSystemPrivate;
 +class KWindowSystemWindowsPrivate;
-+
-+/*
-+    Windows window list and stacking data.
-+
-+    Provides the window enumeration/event data that Plasma's task manager
-+    needs on Windows. KWindowSystem itself no longer exposes window lists
-+    (removed in KF6); on X11 that data comes from KX11Extras, on Wayland
-+    from the plasma window management protocol. This class is the Windows
-+    equivalent, implemented by the KF6WindowSystemWindowsPlugin.
-+*/
-+class KWINDOWSYSTEM_EXPORT KWindowSystemWindows : public QObject
-+{
-+    Q_OBJECT
-+public:
-+    static KWindowSystemWindows *self();
-+
-+    static QList<WId> windows();
-+    static QList<WId> stackingOrder();
-+    static WId activeWindow();
-+    static QRect workArea();
-+
-+Q_SIGNALS:
-+    void windowAdded(WId id);
-+    void windowRemoved(WId id);
-+    void activeWindowChanged(WId id);
-+    void stackingOrderChanged();
-+
-+private:
-+    explicit KWindowSystemWindows(QObject *parent = nullptr);
-+    KWindowSystemWindowsPrivate *d_func() const;
-+};
-+
-+#endif
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/kwindowsystemwindows_p.h" "b/src/kwindowsystemwindows_p.h"
-new file mode 100644
-index 0000000..ab26a85
---- /dev/null
-+++ "b/src/kwindowsystemwindows_p.h"
-@@ -0,0 +1,41 @@
-+/*
-+    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
-+
-+    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
-+*/
-+#ifndef KWINDOWSYSTEMWINDOWS_P_H
-+#define KWINDOWSYSTEMWINDOWS_P_H
-+
-+#include <QObject>
-+#include <QList>
-+#include <QRect>
-+
-+#include <QWidgetList> //For WId
-+#include <kwindowsystem_export.h>
-+
-+/*
-+    Private interface for the Windows window-list data source.
-+    Implemented by the KF6WindowSystemWindowsPlugin (see
-+    src/platforms/windows/windowslist.cpp). Mirrors the data KX11Extras
-+    provides on X11 and the plasma window management protocol on Wayland.
-+*/
-+class KWINDOWSYSTEM_EXPORT KWindowSystemWindowsPrivate : public QObject
-+{
-+    Q_OBJECT
-+public:
-+    explicit KWindowSystemWindowsPrivate(QObject *parent = nullptr);
-+    ~KWindowSystemWindowsPrivate() override;
-+
-+    virtual QList<WId> windows() const = 0;
-+    virtual QList<WId> stackingOrder() const = 0;
-+    virtual WId activeWindow() const = 0;
-+    virtual QRect workArea() const = 0;
-+
-+Q_SIGNALS:
-+    void windowAdded(WId id);
-+    void windowRemoved(WId id);
-+    void activeWindowChanged(WId id);
-+    void stackingOrderChanged();
-+};
-+
-+#endif
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/kwindowsystemwindows.cpp" "b/src/kwindowsystemwindows.cpp"
+ 
+ #define KWindowSystemPluginInterface_iid "org.kde.kwindowsystem.KWindowSystemPluginInterface"
+ 
+@@ -28,6 +29,7 @@ public:
+     virtual KWindowSystemPrivate *createWindowSystem();
+     virtual KWindowShadowPrivate *createWindowShadow();
+     virtual KWindowShadowTilePrivate *createWindowShadowTile();
++    virtual KWindowSystemWindowsPrivate *createWindowList();
+ };
+ 
+ Q_DECLARE_INTERFACE(KWindowSystemPluginInterface, KWindowSystemPluginInterface_iid)
+a/src/kwindowsystemwindows.cpp
 new file mode 100644
 index 0000000..375338d
 --- /dev/null
-+++ "b/src/kwindowsystemwindows.cpp"
+b/src/kwindowsystemwindows.cpp
 @@ -0,0 +1,83 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1188,11 +1017,112 @@ index 0000000..375338d
 +    }
 +    return {};
 +}
-
-diff --git "a/src/platforms/CMakeLists.txt" "b/src/platforms/CMakeLists.txt"
+a/src/kwindowsystemwindows.h
+new file mode 100644
+index 0000000..58386f8
+--- /dev/null
+b/src/kwindowsystemwindows.h
+@@ -0,0 +1,49 @@
++/*
++    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
++
++    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
++*/
++#ifndef KWINDOWSYSTEMWINDOWS_H
++#define KWINDOWSYSTEMWINDOWS_H
++
++#include <QObject>
++#include <QList>
++#include <QRect>
++
++#include <QWidgetList> //For WId
++#include <kwindowsystem_export.h>
++
++class KWindowSystemWindowsPrivate;
++
++/*
++    Windows window list and stacking data.
++
++    Provides the window enumeration/event data that Plasma's task manager
++    needs on Windows. KWindowSystem itself no longer exposes window lists
++    (removed in KF6); on X11 that data comes from KX11Extras, on Wayland
++    from the plasma window management protocol. This class is the Windows
++    equivalent, implemented by the KF6WindowSystemWindowsPlugin.
++*/
++class KWINDOWSYSTEM_EXPORT KWindowSystemWindows : public QObject
++{
++    Q_OBJECT
++public:
++    static KWindowSystemWindows *self();
++
++    static QList<WId> windows();
++    static QList<WId> stackingOrder();
++    static WId activeWindow();
++    static QRect workArea();
++
++Q_SIGNALS:
++    void windowAdded(WId id);
++    void windowRemoved(WId id);
++    void activeWindowChanged(WId id);
++    void stackingOrderChanged();
++
++private:
++    explicit KWindowSystemWindows(QObject *parent = nullptr);
++    KWindowSystemWindowsPrivate *d_func() const;
++};
++
++#endif
+a/src/kwindowsystemwindows_p.h
+new file mode 100644
+index 0000000..ab26a85
+--- /dev/null
+b/src/kwindowsystemwindows_p.h
+@@ -0,0 +1,41 @@
++/*
++    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
++
++    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
++*/
++#ifndef KWINDOWSYSTEMWINDOWS_P_H
++#define KWINDOWSYSTEMWINDOWS_P_H
++
++#include <QObject>
++#include <QList>
++#include <QRect>
++
++#include <QWidgetList> //For WId
++#include <kwindowsystem_export.h>
++
++/*
++    Private interface for the Windows window-list data source.
++    Implemented by the KF6WindowSystemWindowsPlugin (see
++    src/platforms/windows/windowslist.cpp). Mirrors the data KX11Extras
++    provides on X11 and the plasma window management protocol on Wayland.
++*/
++class KWINDOWSYSTEM_EXPORT KWindowSystemWindowsPrivate : public QObject
++{
++    Q_OBJECT
++public:
++    explicit KWindowSystemWindowsPrivate(QObject *parent = nullptr);
++    ~KWindowSystemWindowsPrivate() override;
++
++    virtual QList<WId> windows() const = 0;
++    virtual QList<WId> stackingOrder() const = 0;
++    virtual WId activeWindow() const = 0;
++    virtual QRect workArea() const = 0;
++
++Q_SIGNALS:
++    void windowAdded(WId id);
++    void windowRemoved(WId id);
++    void activeWindowChanged(WId id);
++    void stackingOrderChanged();
++};
++
++#endif
+a/src/platforms/CMakeLists.txt
 index 75b2809..e65b9ca 100644
---- "a/src/platforms/CMakeLists.txt"
-+++ "b/src/platforms/CMakeLists.txt"
+a/src/platforms/CMakeLists.txt
+b/src/platforms/CMakeLists.txt
 @@ -4,3 +4,6 @@ endif()
  if(KWINDOWSYSTEM_WAYLAND)
      add_subdirectory(wayland)
@@ -1200,12 +1130,11 @@ index 75b2809..e65b9ca 100644
 +if(KWINDOWSYSTEM_WINDOWS)
 +    add_subdirectory(windows)
 +endif()
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/CMakeLists.txt" "b/src/platforms/windows/CMakeLists.txt"
+a/src/platforms/windows/CMakeLists.txt
 new file mode 100644
 index 0000000..54a36ed
 --- /dev/null
-+++ "b/src/platforms/windows/CMakeLists.txt"
+b/src/platforms/windows/CMakeLists.txt
 @@ -0,0 +1,18 @@
 +add_library(KF6WindowSystemWindowsPlugin MODULE)
 +
@@ -1225,44 +1154,11 @@ index 0000000..54a36ed
 +)
 +
 +install(TARGETS KF6WindowSystemWindowsPlugin DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/org.kde.kwindowsystem.platforms)
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/plugin.h" "b/src/platforms/windows/plugin.h"
-new file mode 100644
-index 0000000..e84ca4a
---- /dev/null
-+++ "b/src/platforms/windows/plugin.h"
-@@ -0,0 +1,25 @@
-+/*
-+    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
-+
-+    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
-+*/
-+#ifndef WINDOWS_PLUGIN_H
-+#define WINDOWS_PLUGIN_H
-+
-+#include "kwindowsystemplugininterface_p.h"
-+
-+class WindowsPlugin : public KWindowSystemPluginInterface
-+{
-+    Q_OBJECT
-+    Q_PLUGIN_METADATA(IID KWindowSystemPluginInterface_iid FILE "windows.json")
-+    Q_INTERFACES(KWindowSystemPluginInterface)
-+public:
-+    explicit WindowsPlugin(QObject *parent = nullptr);
-+    ~WindowsPlugin() override;
-+
-+    KWindowEffectsPrivate *createEffects() override;
-+    KWindowSystemPrivate *createWindowSystem() override;
-+    KWindowSystemWindowsPrivate *createWindowList() override;
-+};
-+
-+#endif
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/plugin.cpp" "b/src/platforms/windows/plugin.cpp"
+a/src/platforms/windows/plugin.cpp
 new file mode 100644
 index 0000000..17aa36e
 --- /dev/null
-+++ "b/src/platforms/windows/plugin.cpp"
+b/src/platforms/windows/plugin.cpp
 @@ -0,0 +1,35 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1299,250 +1195,42 @@ index 0000000..17aa36e
 +}
 +
 +#include "moc_plugin.cpp"
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/windows.json" "b/src/platforms/windows/windows.json"
+a/src/platforms/windows/plugin.h
 new file mode 100644
-index 0000000..34bbe5c
+index 0000000..e84ca4a
 --- /dev/null
-+++ "b/src/platforms/windows/windows.json"
-@@ -0,0 +1,3 @@
-+{
-+    "platforms": ["windows"]
-+}
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/windowsystem.h" "b/src/platforms/windows/windowsystem.h"
-new file mode 100644
-index 0000000..77c6f2c
---- /dev/null
-+++ "b/src/platforms/windows/windowsystem.h"
-@@ -0,0 +1,40 @@
+b/src/platforms/windows/plugin.h
+@@ -0,0 +1,25 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
 +    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
 +*/
-+#ifndef WINDOWSYSTEM_H
-+#define WINDOWSYSTEM_H
++#ifndef WINDOWS_PLUGIN_H
++#define WINDOWS_PLUGIN_H
 +
-+#include "kwindowsystem_p.h"
++#include "kwindowsystemplugininterface_p.h"
 +
-+#include <QObject>
-+
-+class WindowSystem : public QObject, public KWindowSystemPrivateV5
++class WindowsPlugin : public KWindowSystemPluginInterface
 +{
 +    Q_OBJECT
++    Q_PLUGIN_METADATA(IID KWindowSystemPluginInterface_iid FILE "windows.json")
++    Q_INTERFACES(KWindowSystemPluginInterface)
 +public:
-+    WindowSystem();
-+    ~WindowSystem() override;
++    explicit WindowsPlugin(QObject *parent = nullptr);
++    ~WindowsPlugin() override;
 +
-+    void activateWindow(QWindow *win, long time) override;
-+#if KWINDOWSYSTEM_BUILD_DEPRECATED_SINCE(6, 19)
-+    void requestToken(QWindow *win, uint32_t serial, const QString &app_id) override;
-+#endif
-+    quint32 lastInputSerial(QWindow *window) override;
-+    void setCurrentToken(const QString &token) override;
-+    bool showingDesktop() override;
-+    void setShowingDesktop(bool showing) override;
-+#if KWINDOWSYSTEM_BUILD_DEPRECATED_SINCE(6, 28)
-+    void exportWindow(QWindow *window) override;
-+    void unexportWindow(QWindow *window) override;
-+#endif
-+    QFuture<QString> exportToplevel(QWindow *window) override;
-+    void unexportToplevel(QWindow *window) override;
-+    void setMainWindow(QWindow *window, const QString &handle) override;
-+    QFuture<QString> xdgActivationToken(QWindow *window, uint32_t serial, const QString &appId) override;
-+    void setXdgToplevelTag(QWindow *window, const QString &tag) override;
-+    void setXdgToplevelDescription(QWindow *window, const QString &description) override;
++    KWindowEffectsPrivate *createEffects() override;
++    KWindowSystemPrivate *createWindowSystem() override;
++    KWindowSystemWindowsPrivate *createWindowList() override;
 +};
 +
 +#endif
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/windowsystem.cpp" "b/src/platforms/windows/windowsystem.cpp"
-new file mode 100644
-index 0000000..d0949b4
---- /dev/null
-+++ "b/src/platforms/windows/windowsystem.cpp"
-@@ -0,0 +1,139 @@
-+/*
-+    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
-+
-+    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
-+*/
-+#include "windowsystem.h"
-+
-+#include "windowslist.h"
-+
-+#include <QFuture>
-+#include <QSet>
-+#include <QWindow>
-+
-+#include <windows.h>
-+
-+namespace
-+{
-+void activateWindowById(WId id)
-+{
-+    const HWND hwnd = reinterpret_cast<HWND>(id);
-+    if (!IsWindow(hwnd)) {
-+        return;
-+    }
-+    // Classic foreground-stealing dance: attach input queues so that
-+    // SetForegroundWindow is allowed to steal focus.
-+    const DWORD foregroundThread = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
-+    const DWORD currentThread = GetCurrentThreadId();
-+    const DWORD targetThread = GetWindowThreadProcessId(hwnd, nullptr);
-+    const bool attach = foregroundThread != currentThread && foregroundThread != targetThread;
-+    if (attach) {
-+        AttachThreadInput(currentThread, foregroundThread, TRUE);
-+        AttachThreadInput(currentThread, targetThread, TRUE);
-+    }
-+    if (IsIconic(hwnd)) {
-+        ShowWindow(hwnd, SW_RESTORE);
-+    }
-+    BringWindowToTop(hwnd);
-+    SetForegroundWindow(hwnd);
-+    if (attach) {
-+        AttachThreadInput(currentThread, foregroundThread, FALSE);
-+        AttachThreadInput(currentThread, targetThread, FALSE);
-+    }
-+}
-+}
-+
-+WindowSystem::WindowSystem() = default;
-+
-+WindowSystem::~WindowSystem() = default;
-+
-+void WindowSystem::activateWindow(QWindow *win, long time)
-+{
-+    Q_UNUSED(time)
-+    if (!win || !win->handle()) {
-+        return;
-+    }
-+    activateWindowById(win->winId());
-+}
-+
-+#if KWINDOWSYSTEM_BUILD_DEPRECATED_SINCE(6, 19)
-+void WindowSystem::requestToken(QWindow *win, uint32_t serial, const QString &app_id)
-+{
-+    Q_UNUSED(win)
-+    Q_UNUSED(serial)
-+    Q_UNUSED(app_id)
-+    // XDG activation tokens are Wayland-only; nothing to do on Windows.
-+}
-+#endif
-+
-+quint32 WindowSystem::lastInputSerial(QWindow *window)
-+{
-+    Q_UNUSED(window)
-+    return 0;
-+}
-+
-+void WindowSystem::setCurrentToken(const QString &token)
-+{
-+    Q_UNUSED(token)
-+}
-+
-+bool WindowSystem::showingDesktop()
-+{
-+    return WindowListPrivate::showingDesktop();
-+}
-+
-+void WindowSystem::setShowingDesktop(bool showing)
-+{
-+    WindowListPrivate::setShowingDesktop(showing);
-+}
-+
-+#if KWINDOWSYSTEM_BUILD_DEPRECATED_SINCE(6, 28)
-+void WindowSystem::exportWindow(QWindow *window)
-+{
-+    Q_UNUSED(window)
-+}
-+
-+void WindowSystem::unexportWindow(QWindow *window)
-+{
-+    Q_UNUSED(window)
-+}
-+#endif
-+
-+QFuture<QString> WindowSystem::exportToplevel(QWindow *window)
-+{
-+    Q_UNUSED(window)
-+    return {};
-+}
-+
-+void WindowSystem::unexportToplevel(QWindow *window)
-+{
-+    Q_UNUSED(window)
-+}
-+
-+void WindowSystem::setMainWindow(QWindow *window, const QString &handle)
-+{
-+    Q_UNUSED(window)
-+    Q_UNUSED(handle)
-+}
-+
-+QFuture<QString> WindowSystem::xdgActivationToken(QWindow *window, uint32_t serial, const QString &appId)
-+{
-+    Q_UNUSED(window)
-+    Q_UNUSED(serial)
-+    Q_UNUSED(appId)
-+    return {};
-+}
-+
-+void WindowSystem::setXdgToplevelTag(QWindow *window, const QString &tag)
-+{
-+    Q_UNUSED(window)
-+    Q_UNUSED(tag)
-+}
-+
-+void WindowSystem::setXdgToplevelDescription(QWindow *window, const QString &description)
-+{
-+    Q_UNUSED(window)
-+    Q_UNUSED(description)
-+}
-+
-+#include "moc_windowsystem.cpp"
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/windoweffects.h" "b/src/platforms/windows/windoweffects.h"
-new file mode 100644
-index 0000000..18e2bb8
---- /dev/null
-+++ "b/src/platforms/windows/windoweffects.h"
-@@ -0,0 +1,28 @@
-+/*
-+    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
-+
-+    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
-+*/
-+#ifndef WINDOWEFFECTS_H
-+#define WINDOWEFFECTS_H
-+
-+#include "kwindoweffects_p.h"
-+
-+class WindowEffects : public KWindowEffectsPrivate
-+{
-+public:
-+    WindowEffects();
-+    ~WindowEffects() override;
-+
-+    bool isEffectAvailable(KWindowEffects::Effect effect) override;
-+    void slideWindow(QWindow *window, KWindowEffects::SlideFromLocation location, int offset) override;
-+    void enableBlurBehind(QWindow *window, bool enable = true, const QRegion &region = QRegion()) override;
-+    void enableBackgroundContrast(QWindow *window,
-+                                  bool enable = true,
-+                                  qreal contrast = 1,
-+                                  qreal intensity = 1,
-+                                  qreal saturation = 1,
-+                                  const QRegion &region = QRegion()) override;
-+};
-+
-+#endif
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/windoweffects.cpp" "b/src/platforms/windows/windoweffects.cpp"
+a/src/platforms/windows/windoweffects.cpp
 new file mode 100644
 index 0000000..178be4b
 --- /dev/null
-+++ "b/src/platforms/windows/windoweffects.cpp"
+b/src/platforms/windows/windoweffects.cpp
 @@ -0,0 +1,113 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1657,62 +1345,55 @@ index 0000000..178be4b
 +    // approximated with blur-behind (see isEffectAvailable)
 +    setAccent(reinterpret_cast<HWND>(window->winId()), enable, AccentEnableBlurbehind);
 +}
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/windowslist.h" "b/src/platforms/windows/windowslist.h"
+a/src/platforms/windows/windoweffects.h
 new file mode 100644
-index 0000000..176afd9
+index 0000000..18e2bb8
 --- /dev/null
-+++ "b/src/platforms/windows/windowslist.h"
-@@ -0,0 +1,42 @@
+b/src/platforms/windows/windoweffects.h
+@@ -0,0 +1,28 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
 +    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
 +*/
-+#ifndef WINDOWSLIST_H
-+#define WINDOWSLIST_H
++#ifndef WINDOWEFFECTS_H
++#define WINDOWEFFECTS_H
 +
-+#include "kwindowsystemwindows_p.h"
++#include "kwindoweffects_p.h"
 +
-+/*
-+    Windows implementation of the window list/stacking data source.
-+
-+    Mirrors the role of KX11Extras on X11 and the plasma window management
-+    protocol on Wayland: window enumeration, active window, stacking order
-+    and change notifications (via SetWinEventHook).
-+*/
-+class WindowList : public KWindowSystemWindowsPrivate
++class WindowEffects : public KWindowEffectsPrivate
 +{
-+    Q_OBJECT
 +public:
-+    explicit WindowList(QObject *parent = nullptr);
-+    ~WindowList() override;
++    WindowEffects();
++    ~WindowEffects() override;
 +
-+    QList<WId> windows() const override;
-+    QList<WId> stackingOrder() const override;
-+    WId activeWindow() const override;
-+    QRect workArea() const override;
-+
-+private:
-+    Q_INVOKABLE void handleWindowAdded(WId id);
-+    Q_INVOKABLE void handleWindowRemoved(WId id);
-+    Q_INVOKABLE void handleActiveWindowChanged(WId id);
-+    Q_INVOKABLE void handleStackingOrderChanged();
++    bool isEffectAvailable(KWindowEffects::Effect effect) override;
++    void slideWindow(QWindow *window, KWindowEffects::SlideFromLocation location, int offset) override;
++    void enableBlurBehind(QWindow *window, bool enable = true, const QRegion &region = QRegion()) override;
++    void enableBackgroundContrast(QWindow *window,
++                                  bool enable = true,
++                                  qreal contrast = 1,
++                                  qreal intensity = 1,
++                                  qreal saturation = 1,
++                                  const QRegion &region = QRegion()) override;
 +};
 +
-+namespace WindowListPrivate {
-+bool showingDesktop();
-+void setShowingDesktop(bool showing);
-+}
-+
 +#endif
-
-diff --git "a/D:\\Projects\\CraftRoot\\build\\kde\\frameworks\\tier1\\kwindowsystem\\work\\kwindowsystem-6.28.0\\src/platforms/windows/windowslist.cpp" "b/src/platforms/windows/windowslist.cpp"
+a/src/platforms/windows/windows.json
 new file mode 100644
-index 0000000..efc231f
+index 0000000..34bbe5c
 --- /dev/null
-+++ "b/src/platforms/windows/windowslist.cpp"
-@@ -0,0 +1,184 @@
+b/src/platforms/windows/windows.json
+@@ -0,0 +1,3 @@
++{
++    "platforms": ["windows"]
++}
+a/src/platforms/windows/windowslist.cpp
+new file mode 100644
+index 0000000..1c8b49f
+--- /dev/null
+b/src/platforms/windows/windowslist.cpp
+@@ -0,0 +1,192 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
@@ -1878,9 +1559,17 @@ index 0000000..efc231f
 +        QList<WId> windows;
 +        EnumWindows(enumWindowsProc, reinterpret_cast<LPARAM>(&windows));
 +        s_minimizedByUs.clear();
++        const DWORD shellPid = GetCurrentProcessId();
 +        for (const WId id : windows) {
 +            const HWND hwnd = reinterpret_cast<HWND>(id);
 +            if (IsIconic(hwnd)) {
++                continue;
++            }
++            // Never minimize our own shell windows (plasma desktop/panel):
++            // "show desktop" must reveal the desktop, not hide it.
++            DWORD pid = 0;
++            GetWindowThreadProcessId(hwnd, &pid);
++            if (pid == shellPid) {
 +                continue;
 +            }
 +            ShowWindow(hwnd, SW_MINIMIZE);
@@ -1897,3 +1586,281 @@ index 0000000..efc231f
 +    }
 +}
 +}
+a/src/platforms/windows/windowslist.h
+new file mode 100644
+index 0000000..176afd9
+--- /dev/null
+b/src/platforms/windows/windowslist.h
+@@ -0,0 +1,42 @@
++/*
++    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
++
++    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
++*/
++#ifndef WINDOWSLIST_H
++#define WINDOWSLIST_H
++
++#include "kwindowsystemwindows_p.h"
++
++/*
++    Windows implementation of the window list/stacking data source.
++
++    Mirrors the role of KX11Extras on X11 and the plasma window management
++    protocol on Wayland: window enumeration, active window, stacking order
++    and change notifications (via SetWinEventHook).
++*/
++class WindowList : public KWindowSystemWindowsPrivate
++{
++    Q_OBJECT
++public:
++    explicit WindowList(QObject *parent = nullptr);
++    ~WindowList() override;
++
++    QList<WId> windows() const override;
++    QList<WId> stackingOrder() const override;
++    WId activeWindow() const override;
++    QRect workArea() const override;
++
++private:
++    Q_INVOKABLE void handleWindowAdded(WId id);
++    Q_INVOKABLE void handleWindowRemoved(WId id);
++    Q_INVOKABLE void handleActiveWindowChanged(WId id);
++    Q_INVOKABLE void handleStackingOrderChanged();
++};
++
++namespace WindowListPrivate {
++bool showingDesktop();
++void setShowingDesktop(bool showing);
++}
++
++#endif
+a/src/platforms/windows/windowsystem.cpp
+new file mode 100644
+index 0000000..d0949b4
+--- /dev/null
+b/src/platforms/windows/windowsystem.cpp
+@@ -0,0 +1,139 @@
++/*
++    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
++
++    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
++*/
++#include "windowsystem.h"
++
++#include "windowslist.h"
++
++#include <QFuture>
++#include <QSet>
++#include <QWindow>
++
++#include <windows.h>
++
++namespace
++{
++void activateWindowById(WId id)
++{
++    const HWND hwnd = reinterpret_cast<HWND>(id);
++    if (!IsWindow(hwnd)) {
++        return;
++    }
++    // Classic foreground-stealing dance: attach input queues so that
++    // SetForegroundWindow is allowed to steal focus.
++    const DWORD foregroundThread = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
++    const DWORD currentThread = GetCurrentThreadId();
++    const DWORD targetThread = GetWindowThreadProcessId(hwnd, nullptr);
++    const bool attach = foregroundThread != currentThread && foregroundThread != targetThread;
++    if (attach) {
++        AttachThreadInput(currentThread, foregroundThread, TRUE);
++        AttachThreadInput(currentThread, targetThread, TRUE);
++    }
++    if (IsIconic(hwnd)) {
++        ShowWindow(hwnd, SW_RESTORE);
++    }
++    BringWindowToTop(hwnd);
++    SetForegroundWindow(hwnd);
++    if (attach) {
++        AttachThreadInput(currentThread, foregroundThread, FALSE);
++        AttachThreadInput(currentThread, targetThread, FALSE);
++    }
++}
++}
++
++WindowSystem::WindowSystem() = default;
++
++WindowSystem::~WindowSystem() = default;
++
++void WindowSystem::activateWindow(QWindow *win, long time)
++{
++    Q_UNUSED(time)
++    if (!win || !win->handle()) {
++        return;
++    }
++    activateWindowById(win->winId());
++}
++
++#if KWINDOWSYSTEM_BUILD_DEPRECATED_SINCE(6, 19)
++void WindowSystem::requestToken(QWindow *win, uint32_t serial, const QString &app_id)
++{
++    Q_UNUSED(win)
++    Q_UNUSED(serial)
++    Q_UNUSED(app_id)
++    // XDG activation tokens are Wayland-only; nothing to do on Windows.
++}
++#endif
++
++quint32 WindowSystem::lastInputSerial(QWindow *window)
++{
++    Q_UNUSED(window)
++    return 0;
++}
++
++void WindowSystem::setCurrentToken(const QString &token)
++{
++    Q_UNUSED(token)
++}
++
++bool WindowSystem::showingDesktop()
++{
++    return WindowListPrivate::showingDesktop();
++}
++
++void WindowSystem::setShowingDesktop(bool showing)
++{
++    WindowListPrivate::setShowingDesktop(showing);
++}
++
++#if KWINDOWSYSTEM_BUILD_DEPRECATED_SINCE(6, 28)
++void WindowSystem::exportWindow(QWindow *window)
++{
++    Q_UNUSED(window)
++}
++
++void WindowSystem::unexportWindow(QWindow *window)
++{
++    Q_UNUSED(window)
++}
++#endif
++
++QFuture<QString> WindowSystem::exportToplevel(QWindow *window)
++{
++    Q_UNUSED(window)
++    return {};
++}
++
++void WindowSystem::unexportToplevel(QWindow *window)
++{
++    Q_UNUSED(window)
++}
++
++void WindowSystem::setMainWindow(QWindow *window, const QString &handle)
++{
++    Q_UNUSED(window)
++    Q_UNUSED(handle)
++}
++
++QFuture<QString> WindowSystem::xdgActivationToken(QWindow *window, uint32_t serial, const QString &appId)
++{
++    Q_UNUSED(window)
++    Q_UNUSED(serial)
++    Q_UNUSED(appId)
++    return {};
++}
++
++void WindowSystem::setXdgToplevelTag(QWindow *window, const QString &tag)
++{
++    Q_UNUSED(window)
++    Q_UNUSED(tag)
++}
++
++void WindowSystem::setXdgToplevelDescription(QWindow *window, const QString &description)
++{
++    Q_UNUSED(window)
++    Q_UNUSED(description)
++}
++
++#include "moc_windowsystem.cpp"
+a/src/platforms/windows/windowsystem.h
+new file mode 100644
+index 0000000..77c6f2c
+--- /dev/null
+b/src/platforms/windows/windowsystem.h
+@@ -0,0 +1,40 @@
++/*
++    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
++
++    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
++*/
++#ifndef WINDOWSYSTEM_H
++#define WINDOWSYSTEM_H
++
++#include "kwindowsystem_p.h"
++
++#include <QObject>
++
++class WindowSystem : public QObject, public KWindowSystemPrivateV5
++{
++    Q_OBJECT
++public:
++    WindowSystem();
++    ~WindowSystem() override;
++
++    void activateWindow(QWindow *win, long time) override;
++#if KWINDOWSYSTEM_BUILD_DEPRECATED_SINCE(6, 19)
++    void requestToken(QWindow *win, uint32_t serial, const QString &app_id) override;
++#endif
++    quint32 lastInputSerial(QWindow *window) override;
++    void setCurrentToken(const QString &token) override;
++    bool showingDesktop() override;
++    void setShowingDesktop(bool showing) override;
++#if KWINDOWSYSTEM_BUILD_DEPRECATED_SINCE(6, 28)
++    void exportWindow(QWindow *window) override;
++    void unexportWindow(QWindow *window) override;
++#endif
++    QFuture<QString> exportToplevel(QWindow *window) override;
++    void unexportToplevel(QWindow *window) override;
++    void setMainWindow(QWindow *window, const QString &handle) override;
++    QFuture<QString> xdgActivationToken(QWindow *window, uint32_t serial, const QString &appId) override;
++    void setXdgToplevelTag(QWindow *window, const QString &tag) override;
++    void setXdgToplevelDescription(QWindow *window, const QString &description) override;
++};
++
++#endif
+a/src/pluginwrapper.cpp
+index 87e7cb8..a7fbf1b 100644
+a/src/pluginwrapper.cpp
+b/src/pluginwrapper.cpp
+@@ -144,6 +144,14 @@ KWindowShadowPrivate *KWindowSystemPluginWrapper::createWindowShadow() const
+     return p;
+ }
+ 
++KWindowSystemWindowsPrivate *KWindowSystemPluginWrapper::createWindowList() const
++{
++    if (m_plugin) {
++        return m_plugin->createWindowList();
++    }
++    return nullptr;
++}
++
+ KWindowShadowTilePrivate *KWindowSystemPluginWrapper::createWindowShadowTile() const
+ {
+     KWindowShadowTilePrivate *p = nullptr;
+a/src/pluginwrapper_p.h
+index ce365ab..289ed47 100644
+a/src/pluginwrapper_p.h
+b/src/pluginwrapper_p.h
+@@ -14,6 +14,7 @@ class KWindowShadowPrivate;
+ class KWindowShadowTilePrivate;
+ class KWindowSystemPluginInterface;
+ class KWindowSystemPrivate;
++class KWindowSystemWindowsPrivate;
+ 
+ class KWindowSystemPluginWrapper
+ {
+@@ -26,6 +27,7 @@ public:
+     KWindowSystemPrivate *createWindowSystem() const;
+     KWindowShadowPrivate *createWindowShadow() const;
+     KWindowShadowTilePrivate *createWindowShadowTile() const;
++    KWindowSystemWindowsPrivate *createWindowList() const;
+ 
+ private:
+     std::unique_ptr<KWindowSystemPluginInterface> m_plugin;
