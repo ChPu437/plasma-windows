@@ -295,3 +295,20 @@ QML parent chain, popup-only off-screen parking at componentComplete
 re-positioning in `PlasmaWindow::showEvent`, and removal of the
 `socketWindowPositionChanged` call in `updateVisibility` (it squashed
 the widget explorer).
+
+## libplasma (6.7.4) - 0004 window thumbnail
+
+`0004-windows-window-thumbnail.patch` - `WindowThumbnail` gets a
+Windows branch: live-ish window preview via `PrintWindow`
+(PW_RENDERFULLCONTENT -> RGB32 -> texture, refreshed every 500 ms while
+visible); icon fallback for minimized/invalid windows.
+
+## kio (6.28.0) - Dolphin prerequisite
+
+`0001-windows-export-all-symbols.patch` - `CMakeLists.txt` sets
+`CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON` on Windows. MSVC does not export
+move special members of dllexport classes (`KFileItem(KFileItem&&)`,
+`operator=(KFileItem&&)`), which makes Dolphin fail to link
+("undefined symbol: QList<KFileItem>::QList(QList&&)"). Member-level
+export is impossible (C2487), hence the whole-library export. See
+`docs/dolphin-windows.md` for the Dolphin build.
