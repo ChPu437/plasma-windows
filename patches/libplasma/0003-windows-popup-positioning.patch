@@ -68,3 +68,33 @@ index 193f9a9..a86c7cc 100644
 +    }
      QQuickWindow::showEvent(e);
  }
+ 
+diff --git a/src/plasmaquick/appletquickitem.cpp b/src/plasmaquick/appletquickitem.cpp
+index 9207313..a903e5e 100644
+--- a/src/plasmaquick/appletquickitem.cpp
++++ b/src/plasmaquick/appletquickitem.cpp
+@@ -9,6 +9,7 @@
+ 
+ #include "appletcontext_p.h"
+ #include "containment.h"
++#include "dialog.h"
+ #include "debug_p.h"
+ #include "plasmoid/containmentitem.h"
+ #include "plasmoid/plasmoiditem.h"
+@@ -257,7 +258,15 @@ QQuickItem *AppletQuickItemPrivate::createCompactRepresentationExpanderItem()
+         return nullptr;
+     }
+ 
+-    compactRepresentationExpanderItem->setProperty("compactRepresentation", QVariant::fromValue<QObject *>(createCompactRepresentationItem()));
++    QQuickItem *compactItem = createCompactRepresentationItem();
++    compactRepresentationExpanderItem->setProperty("compactRepresentation", QVariant::fromValue<QObject *>(compactItem));
++    // The QML visualParent binding may never be evaluated by the engine (lazy
++    // evaluation), leaving the popup unanchored (centered on screen). Anchor it
++    // directly on Windows.
++    Dialog *dlg = compactRepresentationExpanderItem->findChild<Dialog *>(QStringLiteral("popupWindow"));
++    if (dlg) {
++        dlg->setVisualParent(compactItem);
++    }
+ 
+     return compactRepresentationExpanderItem;
+ }
