@@ -57,6 +57,22 @@ foreach ($dir in $startMenuDirs) {
         $safeName = ($baseName -replace '[^\w\-\. ]', "_").Trim()
         $desktopFile = Join-Path $outDir ("windows-startmenu-{0}-{1}.desktop" -f $safeName, $hash)
 
+        # Map the Start Menu folder to a KDE category so kickoff's sidebar
+        # groups native apps sensibly instead of dumping them in Utility.
+        $parentDir = Split-Path (Split-Path $link.FullName -Parent) -Leaf
+        $category = switch -Regex ($parentDir + " " + $baseName) {
+            "游戏|Game|Games" { "Game" }
+            "工具|附件|Accessories|Utilities|Utility" { "Utility" }
+            "Office|办公|效率" { "Office" }
+            "开发|Development|Developer" { "Development" }
+            "互联网|网络|Internet|Network|浏览器|Browser" { "Network" }
+            "多媒体|影音|Media|Audio|Video|Music|播放" { "AudioVideo" }
+            "系统|System|管理|Administrative" { "System" }
+            "图形|图像|Graphics|Image|Photo|绘图" { "Graphics" }
+            "教育|Education" { "Education" }
+            default { "Utility" }
+        }
+
         # Escape the Exec line: quote paths containing spaces
         $execTarget = if ($target -match " ") { '"' + $target + '"' } else { $target }
         $execArgs = if ($args) { " " + $args } else { "" }
@@ -72,7 +88,7 @@ Path=$(Split-Path $target -Parent)
 Icon=$target
 Terminal=false
 StartupNotify=false
-Categories=Utility;
+Categories=$category;
 "@
         [System.IO.File]::WriteAllText($desktopFile, $content, [System.Text.UTF8Encoding]::new($false))
         $count++
