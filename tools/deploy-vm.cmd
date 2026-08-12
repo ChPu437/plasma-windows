@@ -7,6 +7,15 @@ rem Location-independent: the CraftRoot runtime must sit in the same folder
 rem as this script (extract plasma-vm.zip next to it, or copy the whole
 rem package). There is no hard-coded drive/path.
 rem
+rem Usage:
+rem   deploy-vm.cmd             start the session (dbus + kactivitymanagerd
+rem                             + kded6 + plasmashell) without touching the
+rem                             shell configuration
+rem   deploy-vm.cmd install     switch the current user's default shell to
+rem                             plasmashell.exe (backup first), then start
+rem                             the session
+rem   deploy-vm.cmd restore     restore the previous default shell and exit
+rem
 rem The script:
 rem   1. sets up the environment (PATH, Qt plugins, XDG dirs)
 rem   2. mirrors KDE package data (plasmoids, shells, wallpapers, .desktop
@@ -17,12 +26,13 @@ rem   3. writes %LOCALAPPDATA%\menus\applications.menu (KService's
 rem      DefaultAppDirs points at the Start Menu on Windows, so AppDir is
 rem      set explicitly)
 rem   4. rebuilds the ksycoca service database (kickoff app listing)
-rem   5. starts the session: dbus-daemon + kactivitymanagerd + kded6
+rem   5. (optional) switches the user shell to plasmashell
+rem   6. starts the session: dbus-daemon + kactivitymanagerd + kded6
 rem      + plasmashell
 rem
-rem Run this from the VM as a normal user. plasmashell runs in the
-rem foreground so the script stays alive as the session host; close it
-rem (or plasmashell) to end the session.
+rem Only the current user's Winlogon\Shell value is touched; system
+rem binaries and Winlogon itself are never modified. The previous value
+rem is saved to %USERPROFILE%\.plasma-windows\shell-backup.txt.
 rem ===========================================================================
 
 rem Package root = this script's folder (no hard-coded path).
@@ -34,6 +44,12 @@ set "LOCAL_DATA=%LOCALAPPDATA%"
 set "BUS_ADDR=tcp:host=127.0.0.1,port=12443"
 set "BUS_PORT=12443"
 set "DBUS_CONF=%~dp0dbus-session-plasma.conf"
+set "SHELL_KEY=HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon"
+set "SHELL_BACKUP=%USERPROFILE%\.plasma-windows\shell-backup.txt"
+set "PLASMA_SHELL=%CRAFT_BIN%\plasmashell.exe"
+set "ACTION=%~1"
+
+if /i "%ACTION%"=="restore" goto :restore_shell
 
 if not exist "%CRAFT_BIN%\plasmashell.exe" (
     echo ERROR: %CRAFT_BIN%\plasmashell.exe not found.
@@ -43,6 +59,9 @@ if not exist "%CRAFT_BIN%\plasmashell.exe" (
     exit /b 1
 )
 
+if /i "%ACTION%"=="install" goto :install_shell
+
+:session
 echo === 1/5 Environment ===
 set "PATH=%CRAFT_BIN%;%PATH%"
 set "QT_PLUGIN_PATH=%CRAFT_ROOT%\plugins"
@@ -102,3 +121,52 @@ echo Starting plasmashell (close this window to end the session)...
 "%CRAFT_BIN%\plasmashell.exe"
 echo plasmashell exited with code %errorlevel%
 endlocal
+exit /b %errorlevel%
+
+rem ---------------------------------------------------------------------------
+rem install: back up the current user shell and switch it to plasmashell.
+rem ---------------------------------------------------------------------------
+:install_shell
+echo === Switching user shell to plasmashell ===
+if not exist "%USERPROFILE%\.plasma-windows" mkdir "%USERPROFILE%\.plasma-windows"
+
+rem Back up the current value (write it raw so restore is exact).
+set "CURRENT_SHELL="
+for /f "usebackq skip=2 tokens=1,* delims= " %%A in (`reg query "%SHELL_KEY%" /v Shell 2^>nul`) do (
+    if "%%A"=="Shell" set "CURRENT_SHELL=%%B"
+)
+if defined CURRENT_SHELL (
+    > "%SHELL_BACKUP%" echo %CURRENT_SHELL%
+    echo Backed up current shell: %CURRENT_SHELL%
+) else (
+    > "%SHELL_BACKUP%" echo explorer.exe
+    echo No previous shell value found; will restore explorer.exe on rollback.
+)
+
+reg add "%SHELL_KEY%" /v Shell /t REG_SZ /d "%PLASMA_SHELL%" /f >nul
+if errorlevel 1 (
+    echo ERROR: failed to write the shell registry value.
+    pause
+    exit /b 1
+)
+echo User shell is now: %PLASMA_SHELL%
+echo Takes effect at next logon/restart. Starting the session now for testing...
+goto :session
+
+rem ---------------------------------------------------------------------------
+rem restore: put the backed-up shell value back (explorer.exe if no backup).
+rem ---------------------------------------------------------------------------
+:restore_shell
+echo === Restoring previous user shell ===
+if exist "%SHELL_BACKUP%" (
+    set /p OLD_SHELL=<"%SHELL_BACKUP%"
+    if not defined OLD_SHELL set "OLD_SHELL=explorer.exe"
+) else (
+    set "OLD_SHELL=explorer.exe"
+)
+reg add "%SHELL_KEY%" /v Shell /t REG_SZ /d "%OLD_SHELL%" /f >nul
+echo User shell restored to: %OLD_SHELL%
+echo Takes effect at next logon/restart.
+endlocal
+exit /b 0
+
