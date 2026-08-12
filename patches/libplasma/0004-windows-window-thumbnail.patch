@@ -1,0 +1,41 @@
+diff --git a/src/declarativeimports/core/windowthumbnail.cpp b/src/declarativeimports/core/windowthumbnail.cpp
+index 6a54fd6..0aa173d 100644
+--- a/src/declarativeimports/core/windowthumbnail.cpp
++++ b/src/declarativeimports/core/windowthumbnail.cpp
+@@ -8,6 +8,8 @@
+ #include <KWindowSystem>
+ #ifndef Q_OS_WIN
+ #include <KX11Extras>
++#else
++#include <windows.h>
+ #endif
+ // Qt
+ #include <QGuiApplication>
+@@ -406,6 +408,27 @@ void WindowThumbnail::iconToTexture(WindowTextureProvider *textureProvider)
+         // fallback to plasma icon
+         icon = QIcon::fromTheme(QStringLiteral(plasma));
+     }
++#else
++    {
++        // No XComposite on Windows; show the window's own icon as the
++        // tooltip thumbnail. (A real live preview would need
++        // DwmRegisterThumbnail, which paints into the window background
++        // and therefore requires the tooltip background to be punched
++        // out - deferred.)
++        const HWND hwnd = reinterpret_cast<HWND>(static_cast<qulonglong>(m_winId));
++        HICON hIcon = nullptr;
++        SendMessageTimeoutW(hwnd, WM_GETICON, ICON_SMALL2, 0, SMTO_ABORTIFHUNG, 500, reinterpret_cast<DWORD_PTR *>(&hIcon));
++        if (!hIcon) {
++            hIcon = reinterpret_cast<HICON>(GetClassLongPtrW(hwnd, GCLP_HICON));
++        }
++        if (hIcon) {
++            icon = QIcon(QPixmap::fromImage(QImage::fromHICON(hIcon)));
++            DestroyIcon(hIcon);
++        }
++        if (icon.isNull()) {
++            icon = QIcon::fromTheme(QStringLiteral(plasma));
++        }
++    }
+ #endif
+     QImage image = icon.pixmap(boundingRect().size().toSize(), window()->devicePixelRatio()).toImage();
+     textureProvider->setTexture(window()->createTextureFromImage(image, QQuickWindow::TextureCanUseAtlas));
