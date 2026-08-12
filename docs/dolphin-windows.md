@@ -45,11 +45,17 @@ After patching, rebuild KIO and reinstall it:
 ## What works / open items
 
 - [x] dolphin.exe launches, shows the Home window
+- [x] **Breeze look + dark theme**: craft breeze provides `breeze6.dll`
+      (QStyle plugin) and the `BreezeDark.colors` scheme; the session
+      script sets `QT_STYLE_OVERRIDE=breeze` and kdeglobals carries
+      `ColorScheme=BreezeDark` / `Theme=breeze`. KDE widget apps render
+      with the Breeze style and a readable dark palette (no more
+      black-on-dark text from the Windows system dark theme).
 - [ ] browse local drives/folders (verify with the user; KIO file
       worker present as `plugins\kf6\kio\kio_file.dll`)
 - [ ] open files (text editor association etc.)
-- [ ] Dolphin in the launcher (add a .desktop for dolphin.exe, or it
-      can be pinned from the taskbar)
+- [ ] Dolphin in the launcher (a .desktop bridge is written; kickoff
+      launching works after the kconfig trust patch)
 - [ ] kio-extras protocols (archive/sftp/smb) - out of scope for the
       core goal (local filesystem)
 - [ ] Baloo search/tags - no Windows support
