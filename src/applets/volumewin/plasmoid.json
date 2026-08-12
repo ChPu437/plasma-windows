@@ -1,0 +1,13 @@
+{
+    "KPlugin": {
+        "Id": "org.kde.plasma.volumewin",
+        "Name": "Volume (Windows)",
+        "Description": "Control the system master volume (Windows native)",
+        "Icon": "audio-volume-high",
+        "ServiceTypes": [
+            "Plasma/Applet"
+        ],
+        "Version": "1.0",
+        "EnabledByDefault": true
+    }
+}

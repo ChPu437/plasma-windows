@@ -1,0 +1,31 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "plasma-windows@local",
+                "Name": "Plasma Windows"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Control the system master volume (Windows native)",
+        "Description[zh_CN]": "控制系统主音量（Windows 原生）",
+        "EnabledByDefault": true,
+        "Icon": "audio-volume-high",
+        "Id": "org.kde.plasma.volumewin",
+        "License": "LGPL-2.1-or-later",
+        "Name": "Volume (Windows)",
+        "Name[zh_CN]": "音量（Windows）",
+        "ServiceTypes": [
+            "Plasma/Applet"
+        ],
+        "Version": "1.0",
+        "Website": ""
+    },
+    "X-KDE-ParentApp": "org.kde.plasma.desktop",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-Provides": [
+        "org.kde.plasma.volume"
+    ],
+    "X-KDE-Provides-PackageVersion": "1.0",
+    "MainScript": "main.qml"
+}
