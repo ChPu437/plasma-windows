@@ -447,3 +447,52 @@ When uncertain whether a dependency or architectural change is necessary, prefer
 The current milestone is complete only when `shell.exe` builds and runs successfully on the Windows 10 LTSC 2021 VMware VM.
 
 Do not proceed to Qt, KDE, or Plasma automatically after completing Phase 0. Stop and report the result.
+
+---
+
+# 12. Windows Porting Notes (Phase 3 lessons)
+
+## 12.1 Plasma popup window architecture (from M3.6 popup-positioning work)
+
+The Plasma popup hierarchy, in order:
+
+* `PlasmaCore.AppletPopup` (QML) -> `PlasmaQuick::AppletPopup` -> `PopupPlasmaWindow` -> `PlasmaWindow` -> `Dialog`
+* `PopupPlasmaWindow::updatePosition()` computes the popup rect via
+  `TransientPlacementHelper` (anchored to `visualParent`, expanded to the
+  panel's window mask so popups align to the panel edge) and clamps it to
+  the screen.
+* Positioning was applied ONLY on X11 (`updatePositionX11`) or Wayland
+  (`updatePositionWayland`). On Windows neither branch ran, so `setPosition`
+  was never called and the popup stayed at the OS default (screen center).
+
+Lessons:
+
+* When a Plasma feature misbehaves on Windows, first verify which class the
+  QML element actually maps to (grep `QML_NAMED_ELEMENT`/`QML_FOREIGN` and
+  the class hierarchy), then check for platform `if` branches
+  (`isPlatformX11()` / `isPlatformWayland()`) with a missing `Q_OS_WIN` case.
+  Fix the correct upstream interface instead of patching around it.
+* QML bindings are lazily evaluated: C++ getters reading a property member
+  directly never trigger binding evaluation. If C++ code must have the value
+  of a QML-bound property at show time, set it explicitly in C++ (or QML
+  signal handler with explicit assignment) - do not rely on the binding.
+* The `visualParent` binding on applet popups is unreliable on Windows; the
+  popup is anchored via explicit `dialog.visualParent = compactRepresentation`
+  in CompactApplet.qml plus a C++ fallback that walks the QML parent chain
+  looking for the `compactRepresentation` property.
+* To avoid the "popup flashes centered then snaps to anchor" glitch, park
+  the window off-screen (e.g. `setPosition(QPoint(-32000, -32000))`) at
+  `componentComplete` and let the anchor positioning run on show.
+* Reposition once after layout settles (e.g. `QTimer::singleShot(0, ...)` in
+  `showEvent`) because popup size is not final at first show; otherwise
+  boundary clamping is wrong (clock popup extended past the screen bottom).
+
+## 12.2 Known Windows limitations
+
+* Hover tooltips (`org.kde.plasma.components ToolTip.qml`, Qt `T.ToolTip`)
+  may overlap the panel edge slightly: Qt clamps popups to the screen
+  geometry, but Plasma panels do not occupy a strut on Windows (on X11,
+  KWin excludes the panel area from `availableGeometry`). Fixing this needs
+  Qt-level popup placement or panel strut support.
+* Plasma panels on Windows do not carry `Qt::X11BypassWindowManagerHint`;
+  identify panels by shape (narrow strip) when popup placement needs it.
