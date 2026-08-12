@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 rem ===========================================================================
 rem start-plasma-session.cmd - Plasma session bootstrap on Windows
 rem
@@ -87,7 +87,8 @@ rem 3. Start kactivitymanagerd in the background.
 powershell -NoProfile -Command "Start-Process -FilePath '%CRAFT_BIN%\kactivitymanagerd.exe' -WindowStyle Hidden"
 
 rem 4. Start kded6 in the foreground; keep this script alive as session host.
-echo Starting kded6...
-"%CRAFT_BIN%\kded6.exe"
-echo kded6 exited with code %errorlevel%
+echo Starting kded6...  (logs: %LOCAL_DATA%\plasma-win-session\kded6.log)
+if not exist "%LOCAL_DATA%\plasma-win-session" mkdir "%LOCAL_DATA%\plasma-win-session"
+"%CRAFT_BIN%\kded6.exe" > "%LOCAL_DATA%\plasma-win-session\kded6.log" 2>&1
+echo kded6 exited with code %errorlevel%. See %LOCAL_DATA%\plasma-win-session\kded6.log
 endlocal
