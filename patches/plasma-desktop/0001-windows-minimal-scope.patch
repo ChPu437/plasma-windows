@@ -1,5 +1,5 @@
 diff --git a/\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\CMakeLists.txt
-index 6b04228..99bc789 100644
+index 6b04228..bb0e17c 100644
 --- a/\CMakeLists.txt
 +++ b/\CMakeLists.txt
 @@ -40,8 +40,8 @@ option(BUILD_DOC "Whether to build the documentation" ON)
@@ -103,10 +103,9 @@ index 6b04228..99bc789 100644
 -    add_subdirectory(attica-kde)
 +    # add_subdirectory(attica-kde)  # deferred: enabled in later M3 stages
  endif()
--add_subdirectory(imports/activitymanager/)
+ add_subdirectory(imports/activitymanager/)
 -add_subdirectory(solid-device-automounter)
 -add_subdirectory(emojier)
-+# add_subdirectory(imports/activitymanager/)  # deferred: enabled in later M3 stages
 +# add_subdirectory(solid-device-automounter)  # deferred: enabled in later M3 stages
 +# add_subdirectory(emojier)  # deferred: enabled in later M3 stages
  if(X11_Xkb_FOUND AND XCB_XKB_FOUND)
@@ -237,3 +236,28 @@ index 80ce477..e7809af 100644
  #if HAVE_X11
      else if (KWindowSystem::isPlatformX11()) {
          indices = findWindows(TaskManager::XWindowTasksModel::winIdsFromMimeData(mimeData, &ok));
+diff --git a/\imports\\activitymanager\\switcherbackend.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\imports\\activitymanager\\switcherbackend.cpp
+index cd46d03..f76ebb9 100644
+--- a/\imports\\activitymanager\\switcherbackend.cpp
++++ b/\imports\\activitymanager\\switcherbackend.cpp
+@@ -33,7 +33,9 @@
+ #if HAVE_X11
+ #include <KX11Extras>
+ #endif
++#ifndef Q_OS_WIN
+ #include <waylandtasksmodel.h>
++#endif
+ #include <windowtasksmodel.h>
+ #if HAVE_X11
+ #include <xwindowtasksmodel.h>
+@@ -452,9 +454,11 @@ bool SwitcherBackend::dragContainsWindows(QMimeData *mimeData) const
+         return TaskManager::XWindowTasksModel::winIdsFromMimeData(mimeData).count();
+     }
+ #endif
++#ifndef Q_OS_WIN
+     if (KWindowSystem::isPlatformWayland()) {
+         return TaskManager::WaylandTasksModel::winIdsFromMimeData(mimeData).count();
+     }
++#endif
+     return false;
+ }
