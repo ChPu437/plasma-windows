@@ -1,7 +1,16 @@
 diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/main.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/main.cpp
-index 5fa1a42..91f1e2a 100644
+index 5fa1a42..79bd42e 100644
 --- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/main.cpp
 +++ b/\shell/main.cpp
+@@ -1,6 +1,6 @@
+-/*
++﻿/*
+     SPDX-FileCopyrightText: 2012 Marco Martin <mart@kde.org>
+-    SPDX-FileCopyrightText: 2013 Sebastian Kügler <sebas@kde.org>
++    SPDX-FileCopyrightText: 2013 Sebastian K眉gler <sebas@kde.org>
+     SPDX-FileCopyrightText: 2015 David Edmundson <davidedmundson@kde.org>
+     SPDX-FileCopyrightText: 2023 Harald Sitter <sitter@kde.org>
+ 
 @@ -27,8 +27,10 @@
  #include <QDBusMessage>
  #include <QDebug>
@@ -13,16 +22,7 @@ index 5fa1a42..91f1e2a 100644
  #include <QProcess>
  #include <QQmlDebuggingEnabler>
  #include <QQuickWindow>
-@@ -37,6 +39,8 @@
- #include <KAboutData>
- #include <KCrash>
- #include <KDBusService>
-+#include <KIconLoader>
-+#include <KIconTheme>
- #include <KLocalizedString>
- #include <KSignalHandler>
- 
-@@ -109,6 +113,52 @@ int main(int argc, char *argv[])
+@@ -109,6 +111,38 @@ int main(int argc, char *argv[])
      QApplication app(argc, argv);
  #ifdef Q_OS_WIN
      qInstallMessageHandler(plasmaWindowsLogHandler);
@@ -57,20 +57,6 @@ index 5fa1a42..91f1e2a 100644
 +            }
 +        }
 +#endif
-+    });
-+
-+    QTimer::singleShot(5000, &app, []() {
-+        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG icons: theme=") << QIcon::themeName()
-+                             << QStringLiteral("fallback=") << QIcon::fallbackThemeName()
-+                             << QStringLiteral("paths=") << QIcon::themeSearchPaths()
-+                             << QStringLiteral("plasmaIconNull=") << QIcon::fromTheme(QStringLiteral("plasma")).isNull()
-+                             << QStringLiteral("startHereNull=") << QIcon::fromTheme(QStringLiteral("start-here-kde")).isNull()
-+                             << QStringLiteral("breezeIndex=") << QFile::exists(QCoreApplication::applicationDirPath() + QStringLiteral("/data/icons/breeze/index.theme"));
-+        KIconLoader *loader = KIconLoader::global();
-+        const KIconTheme *theme = loader->theme();
-+        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG KIconLoader: themeName=") << (theme ? theme->internalName() : QStringLiteral("none"))
-+                             << QStringLiteral("dir=") << (theme ? theme->dir() : QStringLiteral("none"))
-+                             << QStringLiteral("plasmaNull=") << loader->loadIcon(QStringLiteral("plasma"), KIconLoader::Small, 16).isNull();
 +    });
  #endif
  

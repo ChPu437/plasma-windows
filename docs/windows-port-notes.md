@@ -229,11 +229,18 @@ Fixes so far (patches/kiconthemes, patches/plasma-workspace 0001):
   `<appdir>/data/icons` after QML engine setup.
 - `KIconEnginePlugin.dll` copied into `plugins\iconengines\`.
 
-Status: QIcon layer works (settings icons render). Panel icons (kickoff
-"start-here-kde", showdesktop "user-desktop") still render empty -
-KIconLoader reports theme=breeze and the correct theme dir but
-`loadIcon()` returns nothing (theme dir parsing/icon match not yet
-diagnosed) and the startup-rendered QML pixmaps stay cached.
+Status: **QIcon layer works** (settings icons render). The panel icons
+were fixed too: the KIconLoader path resolved the theme and found the
+icon file but `QImageReader` failed on it - **breeze-icons ships
+"redirect" files** (a `.svg` whose entire content is the name of
+another icon, e.g. `start-here-kde.svg` contains `folder-activities.svg`).
+The qrc build turns these into proper aliases but the filesystem
+install keeps them as-is. `tools/fix-icon-redirects.py` resolves every
+redirect to the target's real content (run it after installing
+breeze-icons / as part of deployment). Remaining cosmetic issue:
+panel icons rendered during startup may stay cached empty in the QML
+pixmap cache if the 100 ms search-path re-assertion runs after the
+panel rendered.
 
 ## 8. Window stacking and panel work area (M3.7)
 
