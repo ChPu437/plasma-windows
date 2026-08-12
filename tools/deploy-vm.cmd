@@ -85,11 +85,11 @@ echo === 4/5 Rebuild ksycoca ===
 
 echo === 5/5 Start session (dbus + kactivitymanagerd + kded6 + plasmashell) ===
 if not exist "%DBUS_CONF%" (
-    echo WARNING: dbus config not found next to script (%DBUS_CONF%); using defaults.
+    echo WARNING: dbus config not found next to script [%DBUS_CONF%], using defaults.
     set "DBUS_CONF="
 )
 if defined DBUS_CONF (
-    "%CRAFT_BIN%\dbus-daemon.exe" --config-file=%DBUS_CONF% --nofork >nul 2>&1
+    "%CRAFT_BIN%\dbus-daemon.exe" --config-file="%DBUS_CONF%" --nofork >nul 2>&1
 ) else (
     start "plasma-dbus" "%CRAFT_BIN%\dbus-daemon.exe" --session --nofork
 )
