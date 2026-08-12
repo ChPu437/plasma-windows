@@ -32,8 +32,8 @@ set "DBUS_CONF=%~dp0dbus-session-plasma.conf"
 
 if not exist "%CRAFT_BIN%\plasmashell.exe" (
     echo ERROR: %CRAFT_BIN%\plasmashell.exe not found.
-    echo Extract plasma-vm.7z to %CRAFT_ROOT% first, e.g.:
-    echo    7z x plasma-vm.7z -oD:\Projects\CraftRoot
+    echo Extract plasma-vm.zip to %CRAFT_ROOT% first, e.g.:
+    echo    powershell Expand-Archive plasma-vm.zip -DestinationPath D:\Projects
     pause
     exit /b 1
 )

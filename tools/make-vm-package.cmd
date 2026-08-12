@@ -15,12 +15,12 @@ set "CRAFT_ROOT=D:\Projects\CraftRoot"
 set "OUTDIR=%~1"
 if "%OUTDIR%"=="" set "OUTDIR=D:\Projects\plasma-windows\vm-package"
 set "SEVENZIP=%CRAFT_ROOT%\dev-utils\bin\7za.exe"
-set "PKG=%OUTDIR%\plasma-vm.7z"
+set "PKG=%OUTDIR%\plasma-vm.zip"
 
 if not exist "%OUTDIR%" mkdir "%OUTDIR%"
 
 echo Packing CraftRoot runtime (this takes a while)...
-"%SEVENZIP%" a -t7z -mx=3 -xr!build -xr!download -xr!dev-utils -xr!logs -xr!doc -xr!html -xr!man -xr!tests -xr!msys -xr!include -xr!certs -xr!var -xr!translations -xr!share\locale -xr!share\doc "%PKG%" "%CRAFT_ROOT%\*" >nul
+"%SEVENZIP%" a -tzip -mx=3 -xr!build -xr!download -xr!dev-utils -xr!logs -xr!doc -xr!html -xr!man -xr!tests -xr!msys -xr!include -xr!certs -xr!var -xr!translations -xr!share\locale -xr!share\doc "%PKG%" "%CRAFT_ROOT%\*" >nul
 if errorlevel 1 (
     echo FAILED to create package.
     exit /b 1
@@ -40,7 +40,8 @@ echo ===========================================================================
 echo.
 echo Next steps:
 echo   1. Copy %OUTDIR% into the VM (shared folder or drag-and-drop).
-echo   2. In the VM, extract plasma-vm.7z to D:\Projects\CraftRoot
-echo      (e.g.  7z x plasma-vm.7z -oD:\Projects\CraftRoot )
+echo   2. In the VM, extract plasma-vm.zip to D:\Projects\CraftRoot
+echo      (Windows built-in: right-click Extract All, or
+echo       powershell Expand-Archive plasma-vm.zip -DestinationPath D:\Projects )
 echo   3. Run deploy-vm.cmd (see that file for details).
 endlocal
