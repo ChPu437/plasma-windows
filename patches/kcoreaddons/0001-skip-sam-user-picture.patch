@@ -1,0 +1,21 @@
+diff --git a/src/lib/util/kuser_win.cpp b/src/lib/util/kuser_win.cpp
+index 43e11dc..fc78a52 100644
+--- a/src/lib/util/kuser_win.cpp
++++ b/src/lib/util/kuser_win.cpp
+@@ -452,12 +452,10 @@ static QString faceIconPathImpl(LPCWSTR username)
+ 
+ QString KUser::faceIconPath() const
+ {
+-    if (!isValid()) {
+-        return QString();
+-    }
+-
+-    LPCWSTR username = reinterpret_cast<const WCHAR *>(d->loginName.utf16());
+-    return faceIconPathImpl<FaceIconPath_Vista>(username);
++    // Deferred on Windows (plasma-windows port): SHGetUserPicturePath walks the
++    // SAM account database over RPC and can hang plasmashell at startup.
++    Q_UNUSED(d)
++    return QString();
+ }
+ 
+ QString KUser::shell() const

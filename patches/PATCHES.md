@@ -104,6 +104,27 @@ M3.3 acceptance: plasmashell shows desktop + wallpaper + panel window
 with kickoff/pager/icontasks/showdesktop applets loaded (no applet load
 errors in the debug log).
 
+## kcoreaddons (6.28.0) - startup hang fix
+
+`0001-skip-sam-user-picture.patch` - `src/lib/util/kuser_win.cpp`:
+`KUser::faceIconPath()` returns an empty string on Windows. The upstream
+implementation calls `SHGetUserPicturePath`, which walks the SAM account
+database over RPC (`SamConnect`) and hangs plasmashell's main thread at
+startup (CPU 100%, window not responding; recovered with WinDbg thread
+stack: `KAboutData::setProgramLogo -> SHGetUserPicturePath -> SamConnect`).
+Applied via Craft recipe `patchToApply["6.28.0"]` (blueprint
+`kde/frameworks/tier1/kcoreaddons`).
+
+## plasma-workspace M3.3 follow-up
+
+* `shell/panelshadows.cpp`: `hasShadows()` returns false on Windows
+  (KWindowShadow is not implemented by the Windows backend; every failed
+  `create()` logged a warning and panels re-triggered it constantly).
+  Shadows are deferred to a visual-polish milestone.
+
+M3.3b acceptance: plasmashell starts, stays responsive (CPU idle when
+not interacting), desktop + panel windows show, no KWindowShadow spam.
+
 ## libplasma (6.7.4)
 
 Applied via Craft recipe `patchToApply["6.7.4"]` (blueprint

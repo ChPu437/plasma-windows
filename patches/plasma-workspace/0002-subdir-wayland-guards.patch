@@ -1404,6 +1404,24 @@ diff --git a/shell/main.cpp b/shell/main.cpp
  
      qunsetenv("QT_WAYLAND_DISABLE_FIXED_POSITIONS");
      qputenv("QT_WAYLAND_RECONNECT", "1");
+diff --git a/shell/panelshadows.cpp b/shell/panelshadows.cpp
+--- a/shell/panelshadows.cpp
++++ b/shell/panelshadows.cpp
+@@ -293,7 +293,14 @@ void PanelShadows::Private::clearShadow(QWindow *window)
+ 
+ bool PanelShadows::Private::hasShadows() const
+ {
++#ifdef Q_OS_WIN
++    // KWindowShadow is not implemented on the Windows backend; skip shadows
++    // for now (deferred: visual polish milestone).
++    Q_UNUSED(q)
++    return false;
++#else
+     return q->hasElement(QStringLiteral("shadow-left"));
++#endif
+ }
+ 
+ #include "moc_panelshadows_p.cpp"
 diff --git a/shell/shellcorona.cpp b/shell/shellcorona.cpp
 --- a/shell/shellcorona.cpp
 +++ b/shell/shellcorona.cpp
