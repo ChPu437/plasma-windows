@@ -1404,6 +1404,21 @@ diff --git a/shell/main.cpp b/shell/main.cpp
  
      qunsetenv("QT_WAYLAND_DISABLE_FIXED_POSITIONS");
      qputenv("QT_WAYLAND_RECONNECT", "1");
+diff --git a/shell/panelview.cpp b/shell/panelview.cpp
+--- a/shell/panelview.cpp
++++ b/shell/panelview.cpp
+@@ -81,6 +81,11 @@ PanelView::PanelView(ShellCorona *corona, QScreen *targetScreen, QWindow *parent
+     setResizeMode(QuickViewSharedEngine::SizeRootObjectToView);
+     setColor(QColor(Qt::transparent));
+     setFlags(Qt::FramelessWindowHint | Qt::WindowDoesNotAcceptFocus);
++#ifdef Q_OS_WIN
++    // Windows: keep the panel above the full-screen desktop window (Plasma
++    // owns the desktop; the panel must stay visible above it).
++    setFlags(flags() | Qt::WindowStaysOnTopHint);
++#endif
+     updateAdaptiveOpacityEnabled();
+ 
+     connect(&m_theme, &Plasma::Theme::themeChanged, this, &PanelView::updateMask);
 diff --git a/shell/panelshadows.cpp b/shell/panelshadows.cpp
 --- a/shell/panelshadows.cpp
 +++ b/shell/panelshadows.cpp
