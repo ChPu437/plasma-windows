@@ -333,6 +333,20 @@ index cd46d03..f76ebb9 100644
      return false;
  }
  
+diff --git a/\desktoppackage\\contents\\applet\\CompactApplet.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\applet\\CompactApplet.qml
+index 1aba2a5..fbfa30e 100644
+--- a/\desktoppackage\\contents\\applet\\CompactApplet.qml
++++ b/\desktoppackage\\contents\\applet\\CompactApplet.qml
+@@ -33,6 +33,9 @@ PlasmaCore.ToolTipArea {
+     property PlasmoidItem plasmoidItem
+ 
+     onCompactRepresentationChanged: {
++        // No NOTIFY on compactRepresentation: set the popup parent explicitly
++        // so the dialog anchors to the button (binding evaluates only once).
++        dialog.visualParent = compactRepresentation;
+         if (compactRepresentation) {
+             compactRepresentation.anchors.fill = null;
+             compactRepresentation.parent = compactRepresentationParent;
 diff --git a/\desktoppackage\\contents\\views\\Panel.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\views\\Panel.qml
 index 6dd16c1..0bc7111 100644
 --- a/\desktoppackage\\contents\\views\\Panel.qml

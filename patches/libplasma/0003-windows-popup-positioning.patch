@@ -1,0 +1,70 @@
+diff --git a/src/plasmaquick/dialog.h b/src/plasmaquick/dialog.h
+index a671cd9..f16ce37 100644
+--- a/src/plasmaquick/dialog.h
++++ b/src/plasmaquick/dialog.h
+@@ -66,6 +66,11 @@ class PLASMAQUICK_EXPORT Dialog : public QQuickWindow, public QQmlParserStatus
+      */
+     Q_PROPERTY(QQuickItem *visualParent READ visualParent WRITE setVisualParent NOTIFY visualParentChanged)
+ 
++    // Re-declared with WRITE setVisible() so QML visible bindings go through
++    // Dialog::setVisible, which positions the popup at the visual parent.
++    // (QQuickWindow's own setVisible does not position.)
++    Q_PROPERTY(bool visible READ isVisible WRITE setVisible NOTIFY visibleChanged)
++
+     /*!
+      * \property PlasmaQuick::Dialog::margins
+      * Margins of the dialog around the mainItem.
+diff --git a/src/plasmaquick/dialog.cpp b/src/plasmaquick/dialog.cpp
+index 729325a..24deac8 100644
+--- a/src/plasmaquick/dialog.cpp
++++ b/src/plasmaquick/dialog.cpp
+@@ -291,12 +291,17 @@ void DialogPrivate::updateVisibility(bool visible)
+         } else {
+             if (!cachedGeometry.isNull()) {
+                 q->resize(cachedGeometry.size());
+-                slotWindowPositionChanged();
+-                if (visualParent) {
+-                    q->setPosition(q->popupPosition(visualParent, q->size()));
+-                }
+-                cachedGeometry = QRect();
+             }
++            // Windows: position the popup even on first show (upstream skipped
++            // positioning when cachedGeometry was empty, leaving the window at
++            // the OS default - centered on screen).
++            slotWindowPositionChanged();
++            if (visualParent) {
++                q->setPosition(q->popupPosition(visualParent, q->size()));
++            } else {
++                qWarning().noquote() << QStringLiteral("PLASMA-DEBUG show: visualParent NULL");
++            }
++            cachedGeometry = QRect();
+ 
+             if (mainItem) {
+                 syncToMainItemSize();
+diff --git a/src/plasmaquick/plasmawindow.cpp b/src/plasmaquick/plasmawindow.cpp
+index 193f9a9..a86c7cc 100644
+--- a/src/plasmaquick/plasmawindow.cpp
++++ b/src/plasmaquick/plasmawindow.cpp
+@@ -4,6 +4,7 @@
+ */
+ 
+ #include "plasmawindow.h"
++#include "dialog.h"
+ 
+ #include "dialogbackground_p.h"
+ #include "dialogshadows_p.h"
+@@ -150,6 +151,15 @@ void PlasmaWindow::showEvent(QShowEvent *e)
+         KX11Extras::setState(winId(), NET::SkipTaskbar | NET::SkipPager | NET::SkipSwitcher);
+ #endif
+     }
++    // Windows: QML visible bindings don't reach Dialog::setVisible positioning;
++    // anchor the popup to its visual parent on every show instead.
++    Dialog *dlg = qobject_cast<Dialog *>(this);
++    if (dlg) {
++        QQuickItem *vp = dlg->visualParent();
++        if (vp) {
++            dlg->setPosition(dlg->popupPosition(vp, dlg->size()));
++        }
++    }
+     QQuickWindow::showEvent(e);
+ }
