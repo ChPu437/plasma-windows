@@ -37,6 +37,7 @@ if errorlevel 8 (
 
 rem Drop the session scripts into the archive root next to bin\.
 copy /y "%~dp0deploy-vm.cmd" "%STAGE%\" >nul
+copy /y "%~dp0session-shell.cmd" "%STAGE%\" >nul
 copy /y "%~dp0dbus\session-plasma.conf" "%STAGE%\dbus-session-plasma.conf" >nul 2>&1
 
 echo Packing zip (this takes a while)...

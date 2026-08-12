@@ -47,6 +47,7 @@ set "DBUS_CONF=%~dp0dbus-session-plasma.conf"
 set "SHELL_KEY=HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon"
 set "SHELL_BACKUP=%USERPROFILE%\.plasma-windows\shell-backup.txt"
 set "PLASMA_SHELL=%CRAFT_BIN%\plasmashell.exe"
+set "SESSION_LAUNCHER=%CRAFT_ROOT%\session-shell.cmd"
 set "ACTION=%~1"
 
 if /i "%ACTION%"=="restore" goto :restore_shell
@@ -68,6 +69,7 @@ set "QT_PLUGIN_PATH=%CRAFT_ROOT%\plugins"
 set "XDG_CONFIG_HOME=%LOCAL_DATA%"
 set "XDG_DATA_HOME=%LOCAL_DATA%"
 set "DBUS_SESSION_BUS_ADDRESS=%BUS_ADDR%"
+set "QT_QUICK_BACKEND=software"  rem VMware has no GPU; keep rendering reliable
 
 echo === 2/5 Mirror KDE package data to %%LOCALAPPDATA%% ===
 for %%S in (plasmoids shells wallpapers layout-templates desktoptheme look-and-feel) do (
@@ -143,13 +145,20 @@ if defined CURRENT_SHELL (
     echo No previous shell value found; will restore explorer.exe on rollback.
 )
 
-reg add "%SHELL_KEY%" /v Shell /t REG_SZ /d "%PLASMA_SHELL%" /f >nul
+rem Point the shell at the session launcher (starts dbus + services +
+rem plasmashell), so a plain logon gets a working plasma session.
+if exist "%SESSION_LAUNCHER%" (
+    reg add "%SHELL_KEY%" /v Shell /t REG_SZ /d "cmd.exe /c \"%SESSION_LAUNCHER%\"" /f >nul
+) else (
+    echo WARNING: %SESSION_LAUNCHER% not found; using plain plasmashell.exe.
+    reg add "%SHELL_KEY%" /v Shell /t REG_SZ /d "%PLASMA_SHELL%" /f >nul
+)
 if errorlevel 1 (
     echo ERROR: failed to write the shell registry value.
     pause
     exit /b 1
 )
-echo User shell is now: %PLASMA_SHELL%
+echo User shell is now: cmd.exe /c "%SESSION_LAUNCHER%"
 echo Takes effect at next logon/restart. Starting the session now for testing...
 goto :session
 
