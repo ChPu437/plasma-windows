@@ -52,6 +52,20 @@ set "ACTION=%~1"
 
 if /i "%ACTION%"=="restore" goto :restore_shell
 
+rem Make the craft-compiled hard-coded prefix (D:/Projects/CraftRoot) work when
+rem the package was extracted elsewhere: if it sits in <root>\Projects\CraftRoot,
+rem map D: to <root> (virtual drive via subst, nothing on any disk root).
+if not exist "D:\Projects\CraftRoot\bin\plasmashell.exe" (
+    for %%P in ("%CRAFT_ROOT%\..\..") do set "SUBST_SRC=%%~fP"
+    if exist "%SUBST_SRC%\Projects\CraftRoot\bin\plasmashell.exe" (
+        subst D: "%SUBST_SRC%" >nul 2>&1
+    ) else (
+        echo WARNING: package is not under a "Projects\CraftRoot" layout.
+        echo craft-compiled tools reference D:/Projects/CraftRoot and will fail.
+        echo For full support extract plasma-vm.zip to  ^<any^>\Projects\CraftRoot
+    )
+)
+
 if not exist "%CRAFT_BIN%\plasmashell.exe" (
     echo ERROR: %CRAFT_BIN%\plasmashell.exe not found.
     echo The CraftRoot runtime must sit in the same folder as this script.
