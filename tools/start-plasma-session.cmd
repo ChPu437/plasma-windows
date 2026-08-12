@@ -62,6 +62,9 @@ if not exist "%LOCAL_DATA%\menus" mkdir "%LOCAL_DATA%\menus"
     echo ^</Menu^>
 ) > "%LOCAL_DATA%\menus\applications.menu"
 
+rem Generate .desktop bridges for the Windows Start Menu (native apps in kickoff).
+powershell -ExecutionPolicy Bypass -File "%~dp0build-startmenu-desktops.ps1" >nul 2>&1
+
 rem Rebuild the service database (ksycoca) so kickoff can list applications.
 "%CRAFT_BIN%\kbuildsycoca6.exe" --noincremental >nul 2>&1
 

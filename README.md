@@ -1,4 +1,4 @@
-# Plasma Windows
+﻿# Plasma Windows
 
 A Windows-native port of the KDE Plasma desktop shell. The goal is to
 replace `explorer.exe` as the interactive shell on Windows 10 IoT
@@ -29,7 +29,7 @@ the porting patch catalogue.
 | 3 M3.2| plasma-desktop, default layout loads   | done   |
 | 3 M3.3| panel window + default applets         | done   |
 | 3 M3.4| kickoff app listing (sycoca + menu)    | done   |
-| 3 M3.5| Windows app integration in launcher    | todo   |
+| 3 M3.5| Windows app integration in launcher (Start Menu bridge) | done (base) |
 | 3 M3.6| Taskbar window integration + popup anchoring | done (base) |
 | 3 M3.7| Edit mode, "show desktop", window stacking | done (dev machine) |
 | 4     | Dolphin + KIO Windows backend          | todo   |
@@ -157,3 +157,4 @@ procedure (`SWITCH_SHELL_TESTKEY`/`SWITCH_SHELL_DRYRUN`).
 
 Never run shell-switch operations on the physical development machine;
 they belong to the test VM only.
+
