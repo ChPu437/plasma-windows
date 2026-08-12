@@ -1,5 +1,5 @@
 diff --git a/src/declarativeimports/core/windowthumbnail.cpp b/src/declarativeimports/core/windowthumbnail.cpp
-index 6a54fd6..0aa173d 100644
+index 6a54fd6..4779e98 100644
 --- a/src/declarativeimports/core/windowthumbnail.cpp
 +++ b/src/declarativeimports/core/windowthumbnail.cpp
 @@ -8,6 +8,8 @@
@@ -11,7 +11,72 @@ index 6a54fd6..0aa173d 100644
  #endif
  // Qt
  #include <QGuiApplication>
-@@ -406,6 +408,27 @@ void WindowThumbnail::iconToTexture(WindowTextureProvider *textureProvider)
+@@ -17,6 +19,9 @@
+ #include <QQuickWindow>
+ #include <QRunnable>
+ #include <QSGImageNode>
++#ifdef Q_OS_WIN
++#include <QTimer>
++#endif
+ 
+ // X11
+ #if HAVE_XCB_COMPOSITE
+@@ -142,6 +147,14 @@ WindowThumbnail::WindowThumbnail(QQuickItem *parent)
+ {
+     setFlag(ItemHasContents);
+ 
++#ifdef Q_OS_WIN
++    // Live previews are not available on Windows; periodically recapture
++    // the window with PrintWindow for a near-live thumbnail.
++    m_refreshTimer = new QTimer(this);
++    m_refreshTimer->setInterval(500);
++    connect(m_refreshTimer, &QTimer::timeout, this, &WindowThumbnail::refreshThumbnail);
++#endif
++
+     if (QGuiApplication *gui = dynamic_cast<QGuiApplication *>(QCoreApplication::instance())) {
+         m_xcb = (gui->platformName() == QLatin1String(xcb));
+         if (m_xcb) {
+@@ -196,9 +209,19 @@ void WindowThumbnail::itemChange(ItemChange change, const ItemChangeData &data)
+             if (startRedirecting()) {
+                 update();
+             }
++#ifdef Q_OS_WIN
++            if (m_refreshTimer) {
++                m_refreshTimer->start();
++            }
++#endif
+         } else {
+             stopRedirecting();
+             releaseResources();
++#ifdef Q_OS_WIN
++            if (m_refreshTimer) {
++                m_refreshTimer->stop();
++            }
++#endif
+         }
+         break;
+ 
+@@ -332,11 +355,19 @@ QSGNode *WindowThumbnail::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData
+         m_textureProvider = new WindowTextureProvider();
+     }
+ 
++#ifdef Q_OS_WIN
++    if (m_winId == 0 || (window() && window()->winId() == m_winId)) {
++        iconToTexture(m_textureProvider);
++    } else {
++        windowsThumbnailToTexture(m_textureProvider);
++    }
++#else
+     if (!m_xcb || m_winId == 0 || (window() && window()->winId() == m_winId)) {
+         iconToTexture(m_textureProvider);
+     } else {
+         windowToTexture(m_textureProvider);
+     }
++#endif
+ 
+     QSGImageNode *node = static_cast<QSGImageNode *>(oldNode);
+     if (!node) {
+@@ -406,11 +437,107 @@ void WindowThumbnail::iconToTexture(WindowTextureProvider *textureProvider)
          // fallback to plasma icon
          icon = QIcon::fromTheme(QStringLiteral(plasma));
      }
@@ -39,3 +104,99 @@ index 6a54fd6..0aa173d 100644
  #endif
      QImage image = icon.pixmap(boundingRect().size().toSize(), window()->devicePixelRatio()).toImage();
      textureProvider->setTexture(window()->createTextureFromImage(image, QQuickWindow::TextureCanUseAtlas));
+ }
+ 
++#ifdef Q_OS_WIN
++void WindowThumbnail::refreshThumbnail()
++{
++    if (isVisible() && isEnabled() && m_winId != 0 && window() && window()->isVisible()) {
++        update();
++    }
++}
++
++void WindowThumbnail::windowsThumbnailToTexture(WindowTextureProvider *textureProvider)
++{
++    const HWND hwnd = reinterpret_cast<HWND>(static_cast<qulonglong>(m_winId));
++    if (!IsWindow(hwnd) || IsIconic(hwnd)) {
++        iconToTexture(textureProvider);
++        setThumbnailAvailable(false);
++        return;
++    }
++    RECT r = {};
++    GetWindowRect(hwnd, &r);
++    const int w = r.right - r.left;
++    const int h = r.bottom - r.top;
++    if (w <= 0 || h <= 0) {
++        iconToTexture(textureProvider);
++        setThumbnailAvailable(false);
++        return;
++    }
++
++    HDC srcDc = GetWindowDC(hwnd);
++    if (!srcDc) {
++        iconToTexture(textureProvider);
++        setThumbnailAvailable(false);
++        return;
++    }
++    HDC memDc = CreateCompatibleDC(srcDc);
++    HBITMAP bmp = CreateCompatibleBitmap(srcDc, w, h);
++    if (!bmp) {
++        DeleteDC(memDc);
++        ReleaseDC(hwnd, srcDc);
++        iconToTexture(textureProvider);
++        setThumbnailAvailable(false);
++        return;
++    }
++    HGDIOBJ oldBmp = SelectObject(memDc, bmp);
++    const BOOL printed = PrintWindow(hwnd, memDc, PW_RENDERFULLCONTENT);
++
++    BITMAPINFO bmi = {};
++    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
++    bmi.bmiHeader.biWidth = w;
++    bmi.bmiHeader.biHeight = -h;
++    bmi.bmiHeader.biPlanes = 1;
++    bmi.bmiHeader.biBitCount = 32;
++    bmi.bmiHeader.biCompression = BI_RGB;
++    QImage img(w, h, QImage::Format_RGB32);
++    const int lines = GetDIBits(memDc, bmp, 0, h, img.bits(), &bmi, DIB_RGB_COLORS);
++
++    SelectObject(memDc, oldBmp);
++    DeleteObject(bmp);
++    DeleteDC(memDc);
++    ReleaseDC(hwnd, srcDc);
++
++    if (!printed || lines == 0 || img.isNull()) {
++        iconToTexture(textureProvider);
++        setThumbnailAvailable(false);
++        return;
++    }
++
++    const qreal dpr = window() ? window()->devicePixelRatio() : 1.0;
++    QSize target = boundingRect().size().toSize() * dpr;
++    if (!target.isEmpty() && target != img.size()) {
++        img = img.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation);
++    }
++    textureProvider->setTexture(window()->createTextureFromImage(img, QQuickWindow::TextureCanUseAtlas));
++    setThumbnailAvailable(true);
++}
++#endif
++
+ #if HAVE_XCB_COMPOSITE
+ #if HAVE_GLX
+ bool WindowThumbnail::windowToTextureGLX(WindowTextureProvider *textureProvider)
+diff --git a/src/declarativeimports/core/windowthumbnail.h b/src/declarativeimports/core/windowthumbnail.h
+index c59d8fd..9a94112 100644
+--- a/src/declarativeimports/core/windowthumbnail.h
++++ b/src/declarativeimports/core/windowthumbnail.h
+@@ -127,6 +127,11 @@ private:
+     void resetDamaged();
+     void setThumbnailAvailable(bool thumbnailAvailable);
+     void sceneVisibilityChanged(bool visible);
++#ifdef Q_OS_WIN
++    void windowsThumbnailToTexture(WindowTextureProvider *textureProvider);
++    void refreshThumbnail();
++    QTimer *m_refreshTimer = nullptr;
++#endif
+     bool m_xcb = false;
+     bool m_composite = false;
+     QPointer<QWindow> m_scene;
