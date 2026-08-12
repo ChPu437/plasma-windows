@@ -1,0 +1,35 @@
+diff --git a/\CMakeLists.txt b/D:\\_\\6e12b6ce\\plasma5support-6.7.4\\CMakeLists.txt
+index 024258d..afd449d 100644
+--- a/\CMakeLists.txt
++++ b/\CMakeLists.txt
+@@ -44,7 +44,7 @@ ecm_setup_version(PROJECT
+ add_definitions(-DQT_NO_FOREACH)
+ ################# now find all used packages #################
+ 
+-find_package(Qt6 ${QT_MIN_VERSION} REQUIRED NO_MODULE COMPONENTS Core Gui Quick Sql Qml Widgets Gui)
++find_package(Qt6 ${QT_MIN_VERSION} REQUIRED NO_MODULE COMPONENTS Core DBus Gui Quick Sql Qml Widgets Gui)
+ 
+ if (Qt6Gui_VERSION VERSION_GREATER_EQUAL "6.10.0")
+     find_package(Qt6GuiPrivate ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE)
+@@ -69,7 +69,7 @@ find_package(KSysGuard CONFIG) #devicenotifications
+ find_package(KF6NetworkManagerQt) #geolocation
+ find_package(PlasmaActivities) #activites
+ 
+-option(WITH_X11 "Build mouse data engine with X11 support." ON)
++option(WITH_X11 "Build mouse data engine with X11 support." OFF)  # X11 only, off on Windows
+ if(WITH_X11)
+     find_package(X11 REQUIRED) #mouse
+ endif()
+diff --git a/\src\\CMakeLists.txt b/D:\\_\\6e12b6ce\\plasma5support-6.7.4\\src\\CMakeLists.txt
+index d0c050b..ac6c9fe 100644
+--- a/\src\\CMakeLists.txt
++++ b/\src\\CMakeLists.txt
+@@ -2,7 +2,7 @@ configure_file(config-X11.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-X11.h)
+ 
+ add_subdirectory(plasma5support)
+ add_subdirectory(declarativeimports)
+-add_subdirectory(dataengines)
++# add_subdirectory(dataengines)  # X11-era weather/geolocation engines, deferred
+ 
+ ecm_qt_install_logging_categories(
+     EXPORT PLASMA5SUPPORT

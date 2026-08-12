@@ -1350,7 +1350,20 @@ diff --git a/shell/desktopview.cpp b/shell/desktopview.cpp
 diff --git a/shell/main.cpp b/shell/main.cpp
 --- a/shell/main.cpp
 +++ b/shell/main.cpp
-@@ -38,8 +38,10 @@
+@@ -16,6 +16,12 @@
+ 
+ #include <QApplication>
+ #include <QCommandLineParser>
++#ifdef Q_OS_WIN
++#include <QDateTime>
++#include <QDir>
++#include <QFile>
++#include <QTextStream>
++#endif
+ #include <QDBusConnection>
+ #include <QDBusConnectionInterface>
+ #include <QDBusMessage>
+@@ -38,8 +44,10 @@
  
  #if __has_include(<malloc.h>)
  #include <malloc.h>
@@ -1361,6 +1374,36 @@ diff --git a/shell/main.cpp b/shell/main.cpp
  
  #if __has_include(<malloc.h>) && defined(__GLIBC__)
  static void setupMalloc()
+@@ -58,6 +66,19 @@ static void setupMalloc()
+ }
+ #endif
+ 
++#ifdef Q_OS_WIN
++static void plasmaWindowsLogHandler(QtMsgType type, const QMessageLogContext &ctx, const QString &msg)
++{
++    Q_UNUSED(type)
++    Q_UNUSED(ctx)
++    QFile f(QDir::temp().filePath(QStringLiteral("plasmashell-debug.log")));
++    if (f.open(QIODevice::Append | QIODevice::Text)) {
++        QTextStream ts(&f);
++        ts << QDateTime::currentDateTime().toString(Qt::ISODate) << " " << msg << Qt::endl;
++    }
++}
++#endif
++
+ int main(int argc, char *argv[])
+ {
+ #if __has_include(<malloc.h>) && defined(__GLIBC__)
+@@ -86,6 +107,9 @@ int main(int argc, char *argv[])
+     // bespoke wayland code disable for now. consider disabling when layer-shell lands
+     qunsetenv("QT_WAYLAND_RECONNECT");
+     QApplication app(argc, argv);
++#ifdef Q_OS_WIN
++    qInstallMessageHandler(plasmaWindowsLogHandler);
++#endif
+ 
+     qunsetenv("QT_WAYLAND_DISABLE_FIXED_POSITIONS");
+     qputenv("QT_WAYLAND_RECONNECT", "1");
 diff --git a/shell/shellcorona.cpp b/shell/shellcorona.cpp
 --- a/shell/shellcorona.cpp
 +++ b/shell/shellcorona.cpp

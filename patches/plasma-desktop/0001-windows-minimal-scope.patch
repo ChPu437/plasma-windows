@@ -261,3 +261,17 @@ index cd46d03..f76ebb9 100644
 +#endif
      return false;
  }
+ 
+diff --git a/\desktoppackage\\contents\\views\\Panel.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\views\\Panel.qml
+index 6dd16c1..0bc7111 100644
+--- a/\desktoppackage\\contents\\views\\Panel.qml
++++ b/\desktoppackage\\contents\\views\\Panel.qml
+@@ -218,7 +218,7 @@ Item {
+             floatingnessTarget = 1
+             floatingApplets = true
+         }
+-        if (!KWindowSystem.isPlatformWayland && !KX11Extras.compositingActive) {
++        if (!KWindowSystem.isPlatformWayland && KWindowSystem.isPlatformX11 && !KX11Extras.compositingActive) {
+             opaqueApplets = false
+             panelOpacity = 0
+         }

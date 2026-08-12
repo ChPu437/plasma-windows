@@ -78,6 +78,32 @@ shows and the process stays alive. Package data must be mirrored to
 craft installs under `CraftRoot\bin\data`). Panel window rendering is
 follow-up (M3.3).
 
+## M3.3 - panel window + applets
+
+* `plasma-workspace 0002` (shell/main.cpp): on Windows a debug
+  `QtMessageHandler` writes all Qt logging to `%TEMP%\plasmashell-debug.log`
+  (Qt's default handler only writes to OutputDebugString on Windows GUI
+  programs, so QML errors were invisible otherwise).
+* `plasma-desktop 0001` (desktoppackage/contents/views/Panel.qml): guard
+  `KX11Extras.compositingActive` with `KWindowSystem.isPlatformX11`
+  (KX11Extras QML singleton is not registered on Windows).
+* Wallpaper configuration: `[Containments][n][Wallpaper][org.kde.image][General]`
+  `Image=` must point at an existing file; craft installs no wallpaper
+  images, so a generated gradient PNG is used
+  (`CraftRoot\share\wallpapers\plasma-windows-default.png`).
+
+## plasma5support (6.7.4)
+
+`0001-windows-build-fixes.patch` - `CMakeLists.txt`: add Qt6 DBus
+component (dataengines use `qt_add_dbus_interface`), `WITH_X11` default
+OFF; `src/CMakeLists.txt`: skip dataengines (X11-era weather/geolocation
+engines with MSVC narrowing errors). Provides the
+`org.kde.plasma.plasma5support` QML module required by kickoff.
+
+M3.3 acceptance: plasmashell shows desktop + wallpaper + panel window
+with kickoff/pager/icontasks/showdesktop applets loaded (no applet load
+errors in the debug log).
+
 ## libplasma (6.7.4)
 
 Applied via Craft recipe `patchToApply["6.7.4"]` (blueprint
