@@ -334,7 +334,7 @@ index cd46d03..f76ebb9 100644
  }
  
 diff --git a/\desktoppackage\\contents\\applet\\CompactApplet.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\applet\\CompactApplet.qml
-index 1aba2a5..b2d8e0e 100644
+index 1aba2a5..fbfa30e 100644
 --- a/\desktoppackage\\contents\\applet\\CompactApplet.qml
 +++ b/\desktoppackage\\contents\\applet\\CompactApplet.qml
 @@ -33,6 +33,9 @@ PlasmaCore.ToolTipArea {
@@ -347,47 +347,6 @@ index 1aba2a5..b2d8e0e 100644
          if (compactRepresentation) {
              compactRepresentation.anchors.fill = null;
              compactRepresentation.parent = compactRepresentationParent;
-@@ -219,9 +222,40 @@ PlasmaCore.ToolTipArea {
-         backgroundHints: (Plasmoid.containmentDisplayHints & PlasmaCore.Types.ContainmentPrefersOpaqueBackground) ? PlasmaCore.AppletPopup.SolidBackground : PlasmaCore.AppletPopup.StandardBackground
-         appletInterface: root.plasmoidItem
- 
-+        Timer {
-+            id: popupPositionTimer
-+            interval: 50
-+            repeat: false
-+            // Windows: anchor the popup next to its button explicitly (the QML
-+            // visualParent binding is never evaluated on this platform).
-+            onTriggered: {
-+                if (!root.compactRepresentation || !dialog.visible) {
-+                    return;
-+                }
-+                var gp = root.compactRepresentation.mapToGlobal(0, 0);
-+                var edge = Plasmoid.location;
-+                if (edge === PlasmaCore.Types.RightEdge) {
-+                    dialog.x = gp.x - dialog.width;
-+                    dialog.y = gp.y;
-+                } else if (edge === PlasmaCore.Types.LeftEdge) {
-+                    dialog.x = gp.x + root.compactRepresentation.width;
-+                    dialog.y = gp.y;
-+                } else if (edge === PlasmaCore.Types.TopEdge) {
-+                    dialog.x = gp.x;
-+                    dialog.y = gp.y + root.compactRepresentation.height;
-+                } else {
-+                    dialog.x = gp.x;
-+                    dialog.y = gp.y - dialog.height;
-+                }
-+            }
-+        }
-+
-         property var oldStatus: PlasmaCore.Types.UnknownStatus
- 
-         onVisibleChanged: {
-+            if (visible) {
-+                popupPositionTimer.restart();
-+            }
-             if (!visible) {
-                 expandedSync.restart();
-                 Plasmoid.status = oldStatus;
 diff --git a/\desktoppackage\\contents\\views\\Panel.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\views\\Panel.qml
 index 6dd16c1..0bc7111 100644
 --- a/\desktoppackage\\contents\\views\\Panel.qml

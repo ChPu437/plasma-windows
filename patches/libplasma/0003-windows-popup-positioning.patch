@@ -1,7 +1,7 @@
 diff --git a/src/plasmaquick/dialog.h b/src/plasmaquick/dialog.h
 index a671cd9..f16ce37 100644
 --- a/src/plasmaquick/dialog.h
-+++ b/src/plasmaquick/dialog.h
++++ b/\src/plasmaquick/dialog.h
 @@ -66,6 +66,11 @@ class PLASMAQUICK_EXPORT Dialog : public QQuickWindow, public QQmlParserStatus
       */
      Q_PROPERTY(QQuickItem *visualParent READ visualParent WRITE setVisualParent NOTIFY visualParentChanged)
@@ -15,10 +15,21 @@ index a671cd9..f16ce37 100644
       * \property PlasmaQuick::Dialog::margins
       * Margins of the dialog around the mainItem.
 diff --git a/src/plasmaquick/dialog.cpp b/src/plasmaquick/dialog.cpp
-index 729325a..24deac8 100644
+index 729325a..daca1a3 100644
 --- a/src/plasmaquick/dialog.cpp
-+++ b/src/plasmaquick/dialog.cpp
-@@ -291,12 +291,17 @@ void DialogPrivate::updateVisibility(bool visible)
++++ b/\src/plasmaquick/dialog.cpp
+@@ -24,6 +24,10 @@
+ #include <QQuickItem>
+ #include <QScreen>
+ 
++#ifdef Q_OS_WIN
++#include <windows.h>
++#endif
++
+ #include <KWindowInfo>
+ #include <KWindowSystem>
+ #ifndef Q_OS_WIN
+@@ -291,12 +295,19 @@ void DialogPrivate::updateVisibility(bool visible)
          } else {
              if (!cachedGeometry.isNull()) {
                  q->resize(cachedGeometry.size());
@@ -35,17 +46,84 @@ index 729325a..24deac8 100644
 +            if (visualParent) {
 +                q->setPosition(q->popupPosition(visualParent, q->size()));
 +            } else {
-+                qWarning().noquote() << QStringLiteral("PLASMA-DEBUG show: visualParent NULL");
++                qWarning().noquote() << QStringLiteral("PLASMA-DEBUG show: visualParent NULL")
++                                     << QStringLiteral("class=") << q->metaObject()->className()
++                                     << QStringLiteral("objectName=") << q->objectName();
 +            }
 +            cachedGeometry = QRect();
  
              if (mainItem) {
                  syncToMainItemSize();
+@@ -1078,16 +1089,40 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
+         }
+     }
+ 
++    auto windowGlobalPos = [](QQuickItem *item) -> QPointF {
++        QWindow *w = item->window();
++#ifdef Q_OS_WIN
++        // QWindow::mapToGlobal can return stale/wrong coordinates on Windows
++        // for our shell windows; use the real Win32 screen rect instead.
++        RECT r = {};
++        GetWindowRect(reinterpret_cast<HWND>(w->winId()), &r);
++        const qreal dpr = w->devicePixelRatio();
++        return QPointF(r.left / dpr, r.top / dpr);
++#else
++        return w->mapToGlobal(QPoint(0, 0));
++#endif
++    };
++
+     QPointF pos = item->mapToScene(QPointF(0, 0));
+ 
+     if (item->window()) {
+-        pos = item->window()->mapToGlobal(pos.toPoint());
++        pos = windowGlobalPos(item) + pos;
+     } else {
+         return QPoint();
+     }
+ 
+     // if the item is in a window that ignores WM we want to position the popups outside
+     bool outsideParentWindow = (item->window()->flags() & Qt::X11BypassWindowManagerHint) && item->window()->mask().isNull();
++#ifdef Q_OS_WIN
++    // Plasma panels on Windows neither carry X11BypassWindowManagerHint nor
++    // are detected as X11 docks; identify them by shape (a narrow strip) so
++    // popups align to the panel edge like on X11 docks.
++    {
++        const QSize pwSize = item->window()->size();
++        const bool panelLike = (pwSize.width() < pwSize.height() / 3 || pwSize.height() < pwSize.width() / 3);
++        outsideParentWindow = outsideParentWindow || panelLike;
++    }
++#endif
+ 
+     if (KWindowSystem::isPlatformX11()) {
+         // on X11 we also consider windows with the type Dock
+@@ -1101,7 +1136,7 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
+     } else {
+         parentGeometryBounds = item->mapRectToScene(item->boundingRect()).toRect();
+         if (item->window()) {
+-            parentGeometryBounds.moveTopLeft(item->window()->mapToGlobal(parentGeometryBounds.topLeft()));
++            parentGeometryBounds.moveTopLeft((windowGlobalPos(item) + QPointF(parentGeometryBounds.topLeft())).toPoint());
+             pos = parentGeometryBounds.topLeft();
+         }
+     }
+@@ -1567,6 +1602,13 @@ void Dialog::classBegin()
+ void Dialog::componentComplete()
+ {
+     d->componentComplete = true;
++#ifdef Q_OS_WIN
++    // Windows: without an explicit position the OS would place the popup
++    // centered on first show (visible as a "popup flashes centered, then
++    // snaps to the anchor" glitch). Park the window off-screen; the anchor
++    // positioning in showEvent/updateVisibility runs right after.
++    setPosition(QPoint(-32000, -32000));
++#endif
+     QQuickWindow::setVisible(d->visible);
+     d->updateTheme();
+ }
 diff --git a/src/plasmaquick/plasmawindow.cpp b/src/plasmaquick/plasmawindow.cpp
-index 193f9a9..a86c7cc 100644
+index 193f9a9..8fc6dd2 100644
 --- a/src/plasmaquick/plasmawindow.cpp
-+++ b/src/plasmaquick/plasmawindow.cpp
-@@ -4,6 +4,7 @@
++++ b/\src/plasmaquick/plasmawindow.cpp
+@@ -4,12 +4,15 @@
  */
  
  #include "plasmawindow.h"
@@ -53,7 +131,15 @@ index 193f9a9..a86c7cc 100644
  
  #include "dialogbackground_p.h"
  #include "dialogshadows_p.h"
-@@ -150,6 +151,15 @@ void PlasmaWindow::showEvent(QShowEvent *e)
+ 
+ #include <QMarginsF>
++#include <QPointer>
+ #include <QQuickItem>
++#include <QTimer>
+ 
+ #include <KWindowEffects>
+ #include <KWindowSystem>
+@@ -150,6 +153,31 @@ void PlasmaWindow::showEvent(QShowEvent *e)
          KX11Extras::setState(winId(), NET::SkipTaskbar | NET::SkipPager | NET::SkipSwitcher);
  #endif
      }
@@ -64,6 +150,22 @@ index 193f9a9..a86c7cc 100644
 +        QQuickItem *vp = dlg->visualParent();
 +        if (vp) {
 +            dlg->setPosition(dlg->popupPosition(vp, dlg->size()));
++#ifdef Q_OS_WIN
++            // The popup size is often not final yet at first show; reposition
++            // once layout settled so boundary clamping stays correct
++            // (e.g. the clock popup used to extend past the screen bottom).
++            QPointer<PlasmaWindow> guard(this);
++            QTimer::singleShot(0, [guard]() {
++                if (!guard) {
++                    return;
++                }
++                Dialog *d = qobject_cast<Dialog *>(guard.data());
++                QQuickItem *vp = d ? d->visualParent() : nullptr;
++                if (vp && d->isVisible()) {
++                    d->setPosition(d->popupPosition(vp, d->size()));
++                }
++            });
++#endif
 +        }
 +    }
      QQuickWindow::showEvent(e);
@@ -72,7 +174,7 @@ index 193f9a9..a86c7cc 100644
 diff --git a/src/plasmaquick/appletquickitem.cpp b/src/plasmaquick/appletquickitem.cpp
 index 9207313..a903e5e 100644
 --- a/src/plasmaquick/appletquickitem.cpp
-+++ b/src/plasmaquick/appletquickitem.cpp
++++ b/\src/plasmaquick/appletquickitem.cpp
 @@ -9,6 +9,7 @@
  
  #include "appletcontext_p.h"
@@ -97,4 +199,48 @@ index 9207313..a903e5e 100644
 +    }
  
      return compactRepresentationExpanderItem;
+ }
+diff --git a/src/plasmaquick/popupplasmawindow.cpp b/src/plasmaquick/popupplasmawindow.cpp
+index b4d8a99..b511d27 100644
+--- a/src/plasmaquick/popupplasmawindow.cpp
++++ b/\src/plasmaquick/popupplasmawindow.cpp
+@@ -137,6 +137,25 @@ void PopupPlasmaWindowPrivate::updatePosition()
+ {
+     m_needsReposition = false;
+ 
++    if (!m_visualParent || !m_visualParent->window()) {
++        // Windows: the QML `visualParent` binding is never evaluated (QML
++        // bindings are lazy and our C++ code never reads through the engine),
++        // so recover the anchor item from the QML parent chain instead:
++        // AppletPopup sits inside CompactApplet's root item, which carries a
++        // "compactRepresentation" property pointing at the panel button.
++        for (QObject *o = q->parent(); o; o = o->parent()) {
++            QQuickItem *item = qobject_cast<QQuickItem *>(o);
++            if (!item) {
++                continue;
++            }
++            const QVariant cr = item->property("compactRepresentation");
++            QQuickItem *anchor = cr.value<QQuickItem *>();
++            if (anchor && anchor->window()) {
++                q->setVisualParent(anchor);
++                break;
++            }
++        }
++    }
+     if (!m_visualParent || !m_visualParent->window()) {
+         qmlWarning(q) << "Exposed with no visual parent. Window positioning broken.";
+         return;
+@@ -182,6 +201,13 @@ void PopupPlasmaWindowPrivate::updatePosition()
+     } else if (KWindowSystem::isPlatformWayland()) {
+         updatePositionWayland(popupPosition.topLeft());
+     }
++#ifdef Q_OS_WIN
++    else {
++        // Windows: upstream only positions popups on X11/Wayland; without a
++        // branch here the popup would stay at the OS default (centered).
++        updatePositionX11(popupPosition.topLeft());
++    }
++#endif
+ 
+     updateBorders(popupPosition);
  }
