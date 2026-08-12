@@ -1228,10 +1228,10 @@ b/src/platforms/windows/plugin.h
 +#endif
 a/src/platforms/windows/windoweffects.cpp
 new file mode 100644
-index 0000000..178be4b
+index 0000000..48c22f0
 --- /dev/null
 b/src/platforms/windows/windoweffects.cpp
-@@ -0,0 +1,113 @@
+@@ -0,0 +1,162 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
@@ -1239,6 +1239,10 @@ b/src/platforms/windows/windoweffects.cpp
 +*/
 +#include "windoweffects.h"
 +
++#include <QEasingCurve>
++#include <QHash>
++#include <QPointer>
++#include <QPropertyAnimation>
 +#include <QWindow>
 +
 +#include <windows.h>
@@ -1318,10 +1322,55 @@ b/src/platforms/windows/windoweffects.cpp
 +
 +void WindowEffects::slideWindow(QWindow *window, KWindowEffects::SlideFromLocation location, int offset)
 +{
-+    Q_UNUSED(window)
-+    Q_UNUSED(location)
 +    Q_UNUSED(offset)
-+    // no equivalent on Windows
++    if (!window || !window->handle() || !window->isVisible()) {
++        return;
++    }
++
++    // No compositor to animate the window sliding out of the panel; emulate
++    // the KWin slide effect with a short opacity + position animation.
++    static QHash<WId, QPointer<QPropertyAnimation>> s_animations;
++
++    const QPoint finalPos = window->position();
++    QPoint from = finalPos;
++    const int distance = 24;
++    switch (location) {
++    case KWindowEffects::TopEdge:
++        from.setY(finalPos.y() - distance);
++        break;
++    case KWindowEffects::BottomEdge:
++        from.setY(finalPos.y() + distance);
++        break;
++    case KWindowEffects::LeftEdge:
++        from.setX(finalPos.x() - distance);
++        break;
++    case KWindowEffects::RightEdge:
++        from.setX(finalPos.x() + distance);
++        break;
++    default:
++        break;
++    }
++
++    // Cancel a previous animation for this window (e.g. popup re-shown).
++    QPointer<QPropertyAnimation> old = s_animations.value(window->winId());
++    if (old) {
++        old->stop();
++    }
++
++    auto *move = new QPropertyAnimation(window, "pos", window);
++    move->setDuration(180);
++    move->setEasingCurve(QEasingCurve::OutCubic);
++    move->setStartValue(from);
++    move->setEndValue(finalPos);
++    move->start(QAbstractAnimation::DeleteWhenStopped);
++    s_animations.insert(window->winId(), move);
++
++    auto *fade = new QPropertyAnimation(window, "opacity", window);
++    fade->setDuration(180);
++    fade->setEasingCurve(QEasingCurve::OutCubic);
++    fade->setStartValue(0.0);
++    fade->setEndValue(1.0);
++    fade->start(QAbstractAnimation::DeleteWhenStopped);
 +}
 +
 +void WindowEffects::enableBlurBehind(QWindow *window, bool enable, const QRegion &region)
