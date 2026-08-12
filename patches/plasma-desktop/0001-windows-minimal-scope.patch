@@ -1,0 +1,239 @@
+diff --git a/\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\CMakeLists.txt
+index 6b04228..99bc789 100644
+--- a/\CMakeLists.txt
++++ b/\CMakeLists.txt
+@@ -40,8 +40,8 @@ option(BUILD_DOC "Whether to build the documentation" ON)
+ option(BUILD_KCM_MOUSE_KWIN_WAYLAND "Build the Mouse KCM's KWin+Wayland backend" ON)
+ option(BUILD_KCM_MOUSE_X11 "Build the Mouse KCM's X11 backend" ON)
+ option(BUILD_KCM_TOUCHPAD_KWIN_WAYLAND "Build the Touchpad KCM's KWin+Wayland backend" ON)
+-option(BUILD_KCM_TOUCHPAD_X11 "Build the Touchpad KCM's X11 backend" ON)
+-option(BUILD_KCM_TABLET "Build the Tablet KCM" ON)
++option(BUILD_KCM_TOUCHPAD_X11 "Build the Touchpad KCM's X11 backend" OFF)  # X11 only, off on Windows
++option(BUILD_KCM_TABLET "Build the Tablet KCM" OFF)  # needs Qt6WaylandClient, off on Windows
+ 
+ find_package(Qt6 ${QT_MIN_VERSION} CONFIG REQUIRED COMPONENTS
+     Quick
+@@ -62,6 +62,9 @@ endif()
+ if(BUILD_KCM_TABLET)
+     find_package(Qt6WaylandClient ${QT_MIN_VERSION} CONFIG REQUIRED)
+ endif()
++if(NOT BUILD_KCM_TABLET)
++    find_package(Qt6WaylandClient ${QT_MIN_VERSION} CONFIG QUIET)
++endif()
+ 
+ find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS
+     Auth
+@@ -89,7 +92,7 @@ find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS
+     Svg
+ )
+ 
+-find_package(Plasma5Support ${PROJECT_DEP_VERSION} REQUIRED)
++find_package(Plasma5Support ${PROJECT_DEP_VERSION} CONFIG QUIET)  # unused on Windows
+ find_package(Plasma ${PROJECT_DEP_VERSION} REQUIRED)
+ find_package(PlasmaQuick ${PROJECT_DEP_VERSION} REQUIRED)
+ find_package(PlasmaActivities ${PROJECT_DEP_VERSION} REQUIRED)
+@@ -188,9 +191,9 @@ find_package(LibTaskManager ${PROJECT_DEP_VERSION} CONFIG REQUIRED)
+ find_package(KWinDBusInterface CONFIG REQUIRED)
+ find_package(ScreenSaverDBusInterface CONFIG REQUIRED)
+ find_package(KRunnerAppDBusInterface CONFIG REQUIRED)
+-find_package(KSMServerDBusInterface CONFIG REQUIRED)
++find_package(KSMServerDBusInterface CONFIG QUIET)  # ksmserver not built on Windows
+ find_package(KF6ItemModels CONFIG REQUIRED)
+-find_package(KSysGuard CONFIG REQUIRED)
++find_package(KSysGuard CONFIG QUIET)  # deferred: needed by taskmanager applet (M3.3)
+ find_package(KF6KDED CONFIG REQUIRED)
+ 
+ find_package(KF6Baloo ${KF6_MIN_VERSION})
+@@ -205,8 +208,8 @@ set_package_properties(X11 PROPERTIES
+     DESCRIPTION "X11 libraries"
+     URL "https://www.x.org"
+     PURPOSE "Required for building the X11 based workspace"
+-    TYPE REQUIRED
+-)
++    TYPE OPTIONAL
++)  # X11 only, off on Windows
+ 
+ if(X11_FOUND)
+   set(HAVE_X11 1)
+@@ -221,11 +224,12 @@ set_package_properties(UDev PROPERTIES
+ )
+ 
+ find_package(XCB
+-    REQUIRED COMPONENTS
++    CONFIG QUIET
++    COMPONENTS
+         XCB SHM IMAGE
+     OPTIONAL_COMPONENTS
+         XKB XINPUT ATOM RECORD
+-)
++)  # X11 only, not on Windows
+ 
+ if (BUILD_KCM_TOUCHPAD_X11)
+     find_package(X11_XCB)
+@@ -236,12 +240,12 @@ if (BUILD_KCM_TOUCHPAD_X11)
+ endif()
+ 
+ 
+-set_package_properties(XCB PROPERTIES TYPE REQUIRED)
++set_package_properties(XCB PROPERTIES TYPE OPTIONAL)  # X11 only, off on Windows
+ add_feature_info("XCB-XKB" XCB_XKB_FOUND "Required for building kcm/keyboard")
+ 
+ pkg_check_modules(XORGLIBINPUT xorg-libinput IMPORTED_TARGET)
+ pkg_check_modules(XORGSERVER xorg-server IMPORTED_TARGET)
+-pkg_check_modules(XKBREGISTRY xkbregistry REQUIRED IMPORTED_TARGET)
++pkg_check_modules(XKBREGISTRY xkbregistry QUIET IMPORTED_TARGET)  # only used by keyboard KCM, deferred
+ 
+ ecm_find_qmlmodule(org.kde.pipewire 0.1)
+ 
+@@ -307,20 +311,20 @@ endif()
+ 
+ add_subdirectory(layout-templates)
+ 
+-add_subdirectory(runners)
++# add_subdirectory(runners)  # deferred: enabled in later M3 stages
+ add_subdirectory(containments)
+-add_subdirectory(toolboxes)
++# add_subdirectory(toolboxes)  # deferred: enabled in later M3 stages
+ add_subdirectory(applets)
+-add_subdirectory(kcms)
+-add_subdirectory(knetattach)
++# add_subdirectory(kcms)  # deferred: enabled in later M3 stages
++# add_subdirectory(knetattach)  # deferred: enabled in later M3 stages
+ if(KAccounts6_FOUND AND AccountsQt6_FOUND)
+-    add_subdirectory(attica-kde)
++    # add_subdirectory(attica-kde)  # deferred: enabled in later M3 stages
+ endif()
+-add_subdirectory(imports/activitymanager/)
+-add_subdirectory(solid-device-automounter)
+-add_subdirectory(emojier)
++# add_subdirectory(imports/activitymanager/)  # deferred: enabled in later M3 stages
++# add_subdirectory(solid-device-automounter)  # deferred: enabled in later M3 stages
++# add_subdirectory(emojier)  # deferred: enabled in later M3 stages
+ if(X11_Xkb_FOUND AND XCB_XKB_FOUND)
+-    add_subdirectory(kaccess)
++    # add_subdirectory(kaccess)  # deferred: enabled in later M3 stages
+ endif()
+ install(FILES org.kde.plasmashell.metainfo.xml DESTINATION ${KDE_INSTALL_METAINFODIR})
+ install(FILES kde-mimeapps.list DESTINATION ${KDE_INSTALL_APPDIR})
+@@ -349,10 +353,10 @@ set_package_properties(FontNotoColorEmoji PROPERTIES
+     TYPE RUNTIME
+ )
+ 
+-add_subdirectory(appiumtests)
++# add_subdirectory(appiumtests)  # deferred: enabled in later M3 stages
+ 
+ if(BUILD_DOC)
+-    add_subdirectory(doc)
++    # add_subdirectory(doc)  # deferred: enabled in later M3 stages
+     kdoctools_install(po)
+ endif()
+ 
+diff --git a/\ConfigureChecks.cmake b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\ConfigureChecks.cmake
+index 568274d..9f0d82a 100644
+--- a/\ConfigureChecks.cmake
++++ b/\ConfigureChecks.cmake
+@@ -1,7 +1,11 @@
+ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH} )
+ 
++include(CheckFunctionExists)
++
+ pkg_get_variable(XKBDIR xkeyboard-config xkb_base)
+-if (NOT XKBDIR)
++if (WIN32)
++    set(XKBDIR "")
++elseif (NOT XKBDIR)
+     message(FATAL_ERROR "Couldn't find xkb_base using pkg-config: is xkeyboard-config installed?")
+ elseif (CMAKE_CROSSCOMPILING)
+     if (NOT EXISTS "${CMAKE_SYSROOT}/${XKBDIR}")
+diff --git a/\applets\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\CMakeLists.txt
+index 0dfc9ec..e2854bb 100644
+--- a/\applets\\CMakeLists.txt
++++ b/\applets\\CMakeLists.txt
+@@ -4,8 +4,8 @@ add_subdirectory(kicker)
+ add_subdirectory(kickoff)
+ add_subdirectory(trash)
+ 
+-add_subdirectory(taskmanager)
+-add_subdirectory(window-list)
++# add_subdirectory(taskmanager)  # deferred: enabled in later M3 stages
++# add_subdirectory(window-list)  # deferred: enabled in later M3 stages
+ plasma_install_package(icontasks org.kde.plasma.icontasks)
+ 
+ if(PlasmaActivities_FOUND)
+@@ -15,5 +15,5 @@ endif()
+ 
+ add_subdirectory(minimizeall)
+ add_subdirectory(showdesktop)
+-add_subdirectory(kimpanel)
+-add_subdirectory(keyboardlayout)
++# add_subdirectory(kimpanel)  # deferred: enabled in later M3 stages
++# add_subdirectory(keyboardlayout)  # deferred: enabled in later M3 stages
+diff --git a/\containments\\desktop\\plugins\\folder\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\CMakeLists.txt
+index 9ddc1fc..ea8fe21 100644
+--- a/\containments\\desktop\\plugins\\folder\\CMakeLists.txt
++++ b/\containments\\desktop\\plugins\\folder\\CMakeLists.txt
+@@ -28,6 +28,7 @@ target_sources(folderplugin PRIVATE
+ 
+ target_link_libraries(folderplugin PUBLIC
+                       Qt::Core
++                      Qt::DBus
+                       Qt::Qml
+                       Qt::Quick
+                       Plasma::Activities
+diff --git a/\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt
+index 2b5bbf7..71cd07e 100644
+--- a/\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt
++++ b/\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt
+@@ -11,7 +11,7 @@ add_library(foldertest STATIC
+    ${CMAKE_CURRENT_BINARY_DIR}/../debug.cpp
+ )
+ 
+-target_link_libraries(foldertest PUBLIC Qt::Gui Qt::Quick Plasma::Plasma KF6::KIOFileWidgets KF6::XmlGui KF6::I18n Plasma::Activities KF6::Notifications)
++target_link_libraries(foldertest PUBLIC Qt::DBus Qt::Gui Qt::Quick Plasma::Plasma KF6::KIOFileWidgets KF6::XmlGui KF6::I18n Plasma::Activities KF6::Notifications)
+ 
+ ecm_add_tests(
+    desktopschemehelpertest.cpp
+diff --git a/\containments\\desktop\\plugins\\folder\\foldermodel.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\foldermodel.cpp
+index 98d6f81..5076f92 100644
+--- a/\containments\\desktop\\plugins\\folder\\foldermodel.cpp
++++ b/\containments\\desktop\\plugins\\folder\\foldermodel.cpp
+@@ -82,7 +82,9 @@
+ #include <chrono>
+ #include <sys/stat.h>
+ #include <sys/types.h>
++#ifndef Q_OS_WIN
+ #include <unistd.h>
++#endif
+ 
+ using namespace std::chrono_literals;
+ 
+diff --git a/\applets\\pager\\pagermodel.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\pager\\pagermodel.cpp
+index 80ce477..e7809af 100644
+--- a/\applets\\pager\\pagermodel.cpp
++++ b/\applets\\pager\\pagermodel.cpp
+@@ -10,10 +10,13 @@
+ #include "windowmodel.h"
+ 
+ #include <config-X11.h>
++#include <abstracttasksmodel.h>
+ 
+ #include <activityinfo.h>
+ #include <virtualdesktopinfo.h>
++#ifndef Q_OS_WIN
+ #include <waylandtasksmodel.h>
++#endif
+ #include <windowtasksmodel.h>
+ #if HAVE_X11
+ #include <xwindowtasksmodel.h>
+@@ -563,9 +566,11 @@ void PagerModel::drop(QMimeData *mimeData, int modifiers, const QVariant &itemId
+ 
+     bool ok = false;
+     QList<QModelIndex> indices;
++#ifndef Q_OS_WIN
+     if (KWindowSystem::isPlatformWayland()) {
+         indices = findWindows(TaskManager::WaylandTasksModel::winIdsFromMimeData(mimeData, &ok));
+     }
++#endif
+ #if HAVE_X11
+     else if (KWindowSystem::isPlatformX11()) {
+         indices = findWindows(TaskManager::XWindowTasksModel::winIdsFromMimeData(mimeData, &ok));

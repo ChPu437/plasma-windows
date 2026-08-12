@@ -51,6 +51,33 @@ plasma-desktop 6.7.4 tarball (not yet built) and installed at
 address must be `tcp:host=127.0.0.1,port=12443` (see
 `tools/start-plasma-session.cmd`).
 
+## plasma-desktop (6.7.4) - Phase 3 M3.2 desktop layout
+
+Applied via Craft recipe `patchToApply["6.7.4"]` (blueprint
+`kde/plasma/plasma-desktop`, local edit: platform restriction removed):
+
+* `0001-windows-minimal-scope.patch` - top-level `CMakeLists.txt`:
+  `BUILD_KCM_TABLET`/`BUILD_KCM_TOUCHPAD_X11` default OFF, Qt6WaylandClient
+  and X11/XCB/Plasma5Support/KSysGuard/KSMServerDBusInterface demoted to
+  QUIET/OPTIONAL, `xkbregistry`/`xkb_base` checks skipped on WIN32,
+  `ConfigureChecks.cmake` includes `CheckFunctionExists` (CMake 4);
+  scope reduction: only layout-templates, containments (desktop/panel/
+  folder) and applets (kickoff, trash, pager, showdesktop, minimizeall,
+  activitypager, showActivityManager, icontasks) are built; runners,
+  kcms, toolboxes, knetattach, emojier, kaccess and friends deferred;
+  taskmanager/window-list/kimpanel/keyboardlayout applets deferred
+  (KSysGuard/wayland dependencies); folder plugin/tests get `Qt::DBus`,
+  `foldermodel.cpp` unistd guard, `pagermodel.cpp` wayland guard +
+  `abstracttasksmodel.h` include.
+
+M3.2 acceptance: plasmashell loads the full default layout
+(`plasma-org.kde.plasma.desktop-appletsrc` contains desktopcontainment +
+org.kde.panel + kickoff/pager/icontasks/showdesktop), desktop window
+shows and the process stays alive. Package data must be mirrored to
+`%LOCALAPPDATA%\plasma\` (QStandardPaths on Windows uses LOCALAPPDATA;
+craft installs under `CraftRoot\bin\data`). Panel window rendering is
+follow-up (M3.3).
+
 ## libplasma (6.7.4)
 
 Applied via Craft recipe `patchToApply["6.7.4"]` (blueprint
