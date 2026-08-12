@@ -145,16 +145,14 @@ index 568274d..9f0d82a 100644
  elseif (CMAKE_CROSSCOMPILING)
      if (NOT EXISTS "${CMAKE_SYSROOT}/${XKBDIR}")
 diff --git a/\applets\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\CMakeLists.txt
-index 0dfc9ec..e2854bb 100644
+index 0dfc9ec..4e3b97a 100644
 --- a/\applets\\CMakeLists.txt
 +++ b/\applets\\CMakeLists.txt
-@@ -4,8 +4,8 @@ add_subdirectory(kicker)
- add_subdirectory(kickoff)
+@@ -5,7 +5,7 @@ add_subdirectory(kickoff)
  add_subdirectory(trash)
  
--add_subdirectory(taskmanager)
+ add_subdirectory(taskmanager)
 -add_subdirectory(window-list)
-+# add_subdirectory(taskmanager)  # deferred: enabled in later M3 stages
 +# add_subdirectory(window-list)  # deferred: enabled in later M3 stages
  plasma_install_package(icontasks org.kde.plasma.icontasks)
  
@@ -236,6 +234,79 @@ index 80ce477..e7809af 100644
  #if HAVE_X11
      else if (KWindowSystem::isPlatformX11()) {
          indices = findWindows(TaskManager::XWindowTasksModel::winIdsFromMimeData(mimeData, &ok));
+diff --git a/\applets\\taskmanager\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\CMakeLists.txt
+index 06a8a96..da9b50d 100644
+--- a/\applets\\taskmanager\\CMakeLists.txt
++++ b/\applets\\taskmanager\\CMakeLists.txt
+@@ -41,8 +41,13 @@ ecm_qt_declare_logging_category(org.kde.plasma.taskmanager
+     CATEGORY_NAME org.kde.plasma.taskmanager)
+ 
+ # FIXME Cleanup no longer used libs.
++if(KSysGuard_FOUND)
++    target_link_libraries(org.kde.plasma.taskmanager PRIVATE KSysGuard::ProcessCore)
++endif()  # KSysGuard absent on Windows
++
+ target_link_libraries(org.kde.plasma.taskmanager PRIVATE
+                       Qt::Core
++                      Qt::DBus
+                       Qt::Qml
+                       Qt::Quick
+                       Plasma::Activities
+@@ -54,7 +59,6 @@ target_link_libraries(org.kde.plasma.taskmanager PRIVATE
+                       KF6::KIOFileWidgets # KFilePlacesModel
+                       KF6::Notifications # KNotificationJobUiDelegate
+                       Plasma::Plasma
+-                      KSysGuard::ProcessCore
+                       KF6::Service
+                       KF6::WindowSystem
+                       PW::LibNotificationManager)
+diff --git a/\applets\\taskmanager\\backend.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\backend.cpp
+index 6516a7e..d5e0a12 100644
+--- a/\applets\\taskmanager\\backend.cpp
++++ b/\applets\\taskmanager\\backend.cpp
+@@ -38,8 +38,10 @@
+ #include <PlasmaActivities/Stats/ResultSet>
+ #include <PlasmaActivities/Stats/Terms>
+ 
++#ifndef Q_OS_WIN
+ #include <processcore/process.h>
+ #include <processcore/processes.h>
++#endif
+ 
+ namespace KAStats = KActivities::Stats;
+ 
+@@ -493,6 +495,8 @@ bool Backend::isApplication(const QUrl &url) const
+ 
+ qint64 Backend::parentPid(qint64 pid) const
+ {
++    Q_UNUSED(pid)
++#ifndef Q_OS_WIN
+     KSysGuard::Processes procs;
+     procs.updateOrAddProcess(pid);
+ 
+@@ -515,6 +519,8 @@ qint64 Backend::parentPid(qint64 pid) const
+         }
+     }
+ 
++    return -1;
++#endif // Q_OS_WIN
+     return -1;
+ }
+ 
+diff --git a/\applets\\taskmanager\\backend.h b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\backend.h
+index c9a30da..5d39466 100644
+--- a/\applets\\taskmanager\\backend.h
++++ b/\applets\\taskmanager\\backend.h
+@@ -11,7 +11,9 @@
+ #include <QObject>
+ #include <QRect>
+ 
++#ifndef Q_OS_WIN
+ #include <netwm.h>
++#endif
+ #include <qqmlregistration.h>
+ #include <qwindowdefs.h>
+ 
 diff --git a/\imports\\activitymanager\\switcherbackend.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\imports\\activitymanager\\switcherbackend.cpp
 index cd46d03..f76ebb9 100644
 --- a/\imports\\activitymanager\\switcherbackend.cpp
