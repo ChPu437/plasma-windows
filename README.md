@@ -13,7 +13,9 @@ Remaining M4 work: icon theme integration (panel icons), taskbar polish
 (thumbnails), tray/volume alternatives; then VM acceptance (M5).
 
 See `agents.md` for the full project plan and `patches/PATCHES.md` for
-the porting patch catalogue.
+the porting patch catalogue. Design docs live in `docs/`
+(`architecture.md`, `windows-port-notes.md`, `explorer-parity.md` -
+what a Plasma shell must provide to match explorer).
 
 ## Milestones
 
@@ -72,7 +74,9 @@ the porting patch catalogue.
    Explorer).
 4. **Tray**: statusnotifierwatcher runs; network/volume applets are
    missing (PulseAudio dependency) - native Windows tray/volume bridge
-   needed.
+   needed. Planned route: become the tray host by registering a
+   `Shell_TrayWnd` window (no hooking); see
+   `docs/tray-integration-research.md` section 3C2 + spike list.
 5. **Windows app integration**: the launcher only lists KDE `.desktop`
    entries; generate `.desktop` files (or a Windows app bridge) so
    notepad/calc/browsers are launchable.

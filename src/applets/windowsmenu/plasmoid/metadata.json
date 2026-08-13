@@ -1,0 +1,26 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "plasma-windows@local",
+                "Name": "Plasma Windows"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "Windows Start Menu style launcher",
+        "Icon": "start-here-symbolic",
+        "Id": "org.kde.plasma.windowsmenu",
+        "License": "LGPL-2.1-or-later",
+        "Name": "Start Menu (Windows)",
+        "Name[zh_CN]": "开始菜单（Windows）",
+        "ServiceTypes": [
+            "Plasma/Applet"
+        ],
+        "Version": "1.0",
+        "EnabledByDefault": true
+    },
+    "X-KDE-ParentApp": "org.kde.plasma.desktop",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "MainScript": "ui/main.qml"
+}

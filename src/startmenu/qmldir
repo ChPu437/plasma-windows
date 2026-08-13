@@ -1,0 +1,4 @@
+module org.kde.plasma.windowsmenu
+plugin startmenuplugin
+classname StartMenuPlugin
+typeinfo plugins.qmltypes

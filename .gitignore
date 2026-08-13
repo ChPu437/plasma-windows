@@ -4,6 +4,7 @@ build/
 vm-package/
 *.dmp
 *.obj
+research/
 
 # applet build artifacts (tools/build-applets.cmd)
 *.exp
