@@ -46,7 +46,7 @@ if ($LASTEXITCODE -ge 8) { Write-Error "robocopy failed with code $LASTEXITCODE"
 
 # --- 2. scripts + dbus conf --------------------------------------------------
 Write-Host "`n== scripts =="
-$scripts = @("deploy-vm.cmd", "session-shell.cmd", "plasma-shell.cmd", "plasma-common.cmd", "start-plasma-session.cmd", "switch-shell.cmd", "shell-registry.ps1")
+$scripts = @("deploy-vm.cmd", "session-shell.cmd", "plasma-shell.cmd", "plasma-common.cmd", "start-plasma-session.cmd", "switch-shell.cmd", "shell-registry.ps1", "update-from-shared.cmd")
 foreach ($s in $scripts) {
     $src = Join-Path $ToolsDir $s
     if (Test-Path $src) {
