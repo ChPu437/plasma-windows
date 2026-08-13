@@ -22,8 +22,4 @@ set_target_properties(org.kde.plasma.volumewin PROPERTIES PREFIX "")
 install(TARGETS org.kde.plasma.volumewin DESTINATION plugins/plasma/applets)
 
 # KPackage data
-install(DIRECTORY plasmoid/ DESTINATION bin/data/plasma/plasmoids/org.kde.plasma.volumewin)
-
-
-
-
+install(DIRECTORY plasmoid/ DESTINATION ${KDE_INSTALL_DATADIR}/plasma/plasmoids/org.kde.plasma.volumewin)

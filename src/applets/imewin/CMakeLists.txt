@@ -22,7 +22,7 @@ set_target_properties(org.kde.plasma.imewin PROPERTIES PREFIX "")
 install(TARGETS org.kde.plasma.imewin DESTINATION plugins/plasma/applets)
 
 # KPackage data
-install(DIRECTORY plasmoid/ DESTINATION bin/data/plasma/plasmoids/org.kde.plasma.imewin)
+install(DIRECTORY plasmoid/ DESTINATION ${KDE_INSTALL_DATADIR}/plasma/plasmoids/org.kde.plasma.imewin)
 
 
 
