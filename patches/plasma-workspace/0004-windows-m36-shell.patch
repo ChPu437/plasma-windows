@@ -1,13 +1,13 @@
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/main.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/main.cpp
+﻿diff --git a/shell/main.cpp b/shell/main.cpp
 index 5fa1a42..79bd42e 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/main.cpp
-+++ b/\shell/main.cpp
+--- a/shell/main.cpp
++++ b/shell/main.cpp
 @@ -1,6 +1,6 @@
 -/*
-+﻿/*
++锘?*
      SPDX-FileCopyrightText: 2012 Marco Martin <mart@kde.org>
--    SPDX-FileCopyrightText: 2013 Sebastian Kügler <sebas@kde.org>
-+    SPDX-FileCopyrightText: 2013 Sebastian K眉gler <sebas@kde.org>
+-    SPDX-FileCopyrightText: 2013 Sebastian K眉gler <sebas@kde.org>
++    SPDX-FileCopyrightText: 2013 Sebastian K鐪塯ler <sebas@kde.org>
      SPDX-FileCopyrightText: 2015 David Edmundson <davidedmundson@kde.org>
      SPDX-FileCopyrightText: 2023 Harald Sitter <sitter@kde.org>
  
@@ -61,10 +61,10 @@ index 5fa1a42..79bd42e 100644
  #endif
  
      qunsetenv("QT_WAYLAND_DISABLE_FIXED_POSITIONS");
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/shellcorona.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/shellcorona.cpp
+diff --git a/shell/shellcorona.cpp b/shell/shellcorona.cpp
 index 0f1a278..b56eb15 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/shellcorona.cpp
-+++ b/\shell/shellcorona.cpp
+--- a/shell/shellcorona.cpp
++++ b/shell/shellcorona.cpp
 @@ -1838,7 +1838,15 @@ void ShellCorona::syncAppConfig()
  
  void ShellCorona::setDashboardShown(bool show)
@@ -81,10 +81,10 @@ index 0f1a278..b56eb15 100644
  }
  
  void ShellCorona::toggleDashboard()
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/desktopview.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/desktopview.cpp
+diff --git a/shell/desktopview.cpp b/shell/desktopview.cpp
 index f58998a..d073a8a 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/desktopview.cpp
-+++ b/\shell/desktopview.cpp
+--- a/shell/desktopview.cpp
++++ b/shell/desktopview.cpp
 @@ -19,6 +19,10 @@
  #include <QQuickItem>
  #include <QScreen>
@@ -130,10 +130,10 @@ index f58998a..d073a8a 100644
      return PlasmaQuick::ContainmentView::event(e);
  }
  
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/panelview.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/panelview.cpp
+diff --git a/shell/panelview.cpp b/shell/panelview.cpp
 index cdb1e5c..ed30de9 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/panelview.cpp
-+++ b/\shell/panelview.cpp
+--- a/shell/panelview.cpp
++++ b/shell/panelview.cpp
 @@ -14,6 +14,10 @@
  #include "panelconfigview.h"
  #include "panelshadows_p.h"
@@ -211,10 +211,10 @@ index cdb1e5c..ed30de9 100644
  void PanelView::setScreenToFollow(QScreen *screen)
  {
      if (screen == m_screenToFollow) {
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/panelview.h b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/panelview.h
+diff --git a/shell/panelview.h b/shell/panelview.h
 index 19c5b67..8f67186 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/panelview.h
-+++ b/\shell/panelview.h
+--- a/shell/panelview.h
++++ b/shell/panelview.h
 @@ -268,9 +268,13 @@ protected:
  
      void resizeEvent(QResizeEvent *ev) override;
@@ -229,10 +229,10 @@ index 19c5b67..8f67186 100644
  
  Q_SIGNALS:
      void alignmentChanged();
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/CMakeLists.txt b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/shell/CMakeLists.txt
+diff --git a/shell/CMakeLists.txt b/shell/CMakeLists.txt
 index ed976d2..74716f8 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/shell/CMakeLists.txt
-+++ b/\shell/CMakeLists.txt
+--- a/shell/CMakeLists.txt
++++ b/shell/CMakeLists.txt
 @@ -124,6 +124,7 @@ target_link_libraries(plasmashell PRIVATE
   KF6::GlobalAccel
   KF6::GuiAddons
@@ -241,10 +241,10 @@ index ed976d2..74716f8 100644
   KF6::KIOCore
   KF6::Package
   KF6::Notifications
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/windowtasksmodel.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/libtaskmanager/windowtasksmodel.cpp
+diff --git a/libtaskmanager/windowtasksmodel.cpp b/libtaskmanager/windowtasksmodel.cpp
 index 05e9ca0..0254c97 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/windowtasksmodel.cpp
-+++ b/\libtaskmanager/windowtasksmodel.cpp
+--- a/libtaskmanager/windowtasksmodel.cpp
++++ b/libtaskmanager/windowtasksmodel.cpp
 @@ -15,6 +15,9 @@
  #if HAVE_X11
  #include "xwindowtasksmodel.h"
@@ -268,10 +268,10 @@ index 05e9ca0..0254c97 100644
      q->setSourceModel(sourceTasksModel);
  }
  
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/concatenatetasksproxymodel.cpp b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/libtaskmanager/concatenatetasksproxymodel.cpp
+diff --git a/libtaskmanager/concatenatetasksproxymodel.cpp b/libtaskmanager/concatenatetasksproxymodel.cpp
 index 27e470f..f978715 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/concatenatetasksproxymodel.cpp
-+++ b/\libtaskmanager/concatenatetasksproxymodel.cpp
+--- a/libtaskmanager/concatenatetasksproxymodel.cpp
++++ b/libtaskmanager/concatenatetasksproxymodel.cpp
 @@ -1,11 +1,159 @@
  /*
      SPDX-FileCopyrightText: 2016 Eike Hein <hein@kde.org>
@@ -472,10 +472,10 @@ index 27e470f..f978715 100644
 +#endif
 +
  #include "moc_concatenatetasksproxymodel.cpp"
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/concatenatetasksproxymodel.h b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/libtaskmanager/concatenatetasksproxymodel.h
+diff --git a/libtaskmanager/concatenatetasksproxymodel.h b/libtaskmanager/concatenatetasksproxymodel.h
 index 02a49b1..0e93938 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/concatenatetasksproxymodel.h
-+++ b/\libtaskmanager/concatenatetasksproxymodel.h
+--- a/libtaskmanager/concatenatetasksproxymodel.h
++++ b/libtaskmanager/concatenatetasksproxymodel.h
 @@ -8,7 +8,11 @@
  
  #include "abstracttasksproxymodeliface.h"
@@ -520,10 +520,10 @@ index 02a49b1..0e93938 100644
  };
  
  }
-diff --git a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/CMakeLists.txt b/D:/Projects/CraftRoot/build/kde/plasma/plasma-workspace/work/plasma-workspace-6.7.4/libtaskmanager/CMakeLists.txt
+diff --git a/libtaskmanager/CMakeLists.txt b/libtaskmanager/CMakeLists.txt
 index 4c284a7..1bd1112 100644
---- a/C:/Users/jing/AppData/Local/Temp/opencode/pw-clean/libtaskmanager/CMakeLists.txt
-+++ b/\libtaskmanager/CMakeLists.txt
+--- a/libtaskmanager/CMakeLists.txt
++++ b/libtaskmanager/CMakeLists.txt
 @@ -29,6 +29,13 @@ if (HAVE_X11)
      )
  endif()
@@ -603,7 +603,7 @@ diff --git a/libtaskmanager/windowswindowtasksmodel.cpp b/libtaskmanager/windows
 new file mode 100644
 --- /dev/null
 +++ b/libtaskmanager/windowswindowtasksmodel.cpp
-@@ -0,0 +1,467 @@
+@@ -0,0 +1,457 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
@@ -818,10 +818,6 @@ new file mode 100644
 +        }
 +    }
 +
-+    if (windows.size() != newWindows.size()) {
-+        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG WindowsWindowTasksModel rowCount=") << newWindows.count();
-+    }
-+
 +    refreshData();
 +}
 +
@@ -838,13 +834,6 @@ new file mode 100644
 +    : AbstractWindowTasksModel(parent)
 +    , d(new Private(this))
 +{
-+    qWarning().noquote() << QStringLiteral("PLASMA-DEBUG WindowsWindowTasksModel created, windows=") << d->windows.count();
-+    QTimer::singleShot(3000, this, [this]() {
-+        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG model row0: title=") << data(index(0), Qt::DisplayRole).toString()
-+                             << QStringLiteral("hwnd=") << d->windows.value(0)
-+                             << QStringLiteral("onAllVD=") << data(index(0), AbstractTasksModel::IsOnAllVirtualDesktops).toBool()
-+                             << QStringLiteral("skipTB=") << data(index(0), AbstractTasksModel::SkipTaskbar).toBool();
-+    });
 +}
 +
 +WindowsWindowTasksModel::~WindowsWindowTasksModel()

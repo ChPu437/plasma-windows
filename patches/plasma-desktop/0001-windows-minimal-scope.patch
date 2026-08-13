@@ -1,7 +1,7 @@
-diff --git a/\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\CMakeLists.txt
+﻿diff --git a/\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\CMakeLists.txt
 index 6b04228..bb0e17c 100644
 --- a/\CMakeLists.txt
-+++ b/\CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -40,8 +40,8 @@ option(BUILD_DOC "Whether to build the documentation" ON)
  option(BUILD_KCM_MOUSE_KWIN_WAYLAND "Build the Mouse KCM's KWin+Wayland backend" ON)
  option(BUILD_KCM_MOUSE_X11 "Build the Mouse KCM's X11 backend" ON)
@@ -130,7 +130,7 @@ index 6b04228..bb0e17c 100644
 diff --git a/\ConfigureChecks.cmake b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\ConfigureChecks.cmake
 index 568274d..9f0d82a 100644
 --- a/\ConfigureChecks.cmake
-+++ b/\ConfigureChecks.cmake
++++ b/ConfigureChecks.cmake
 @@ -1,7 +1,11 @@
  set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH} )
  
@@ -147,7 +147,7 @@ index 568274d..9f0d82a 100644
 diff --git a/\applets\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\CMakeLists.txt
 index 0dfc9ec..4e3b97a 100644
 --- a/\applets\\CMakeLists.txt
-+++ b/\applets\\CMakeLists.txt
++++ b/applets//CMakeLists.txt
 @@ -5,7 +5,7 @@ add_subdirectory(kickoff)
  add_subdirectory(trash)
  
@@ -168,7 +168,7 @@ index 0dfc9ec..4e3b97a 100644
 diff --git a/\containments\\desktop\\plugins\\folder\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\CMakeLists.txt
 index 9ddc1fc..ea8fe21 100644
 --- a/\containments\\desktop\\plugins\\folder\\CMakeLists.txt
-+++ b/\containments\\desktop\\plugins\\folder\\CMakeLists.txt
++++ b/containments//desktop//plugins//folder//CMakeLists.txt
 @@ -28,6 +28,7 @@ target_sources(folderplugin PRIVATE
  
  target_link_libraries(folderplugin PUBLIC
@@ -180,7 +180,7 @@ index 9ddc1fc..ea8fe21 100644
 diff --git a/\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt
 index 2b5bbf7..71cd07e 100644
 --- a/\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt
-+++ b/\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt
++++ b/containments//desktop//plugins//folder//autotests//CMakeLists.txt
 @@ -11,7 +11,7 @@ add_library(foldertest STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/../debug.cpp
  )
@@ -193,7 +193,7 @@ index 2b5bbf7..71cd07e 100644
 diff --git a/\containments\\desktop\\plugins\\folder\\foldermodel.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\foldermodel.cpp
 index 98d6f81..5076f92 100644
 --- a/\containments\\desktop\\plugins\\folder\\foldermodel.cpp
-+++ b/\containments\\desktop\\plugins\\folder\\foldermodel.cpp
++++ b/containments//desktop//plugins//folder//foldermodel.cpp
 @@ -82,7 +82,9 @@
  #include <chrono>
  #include <sys/stat.h>
@@ -207,7 +207,7 @@ index 98d6f81..5076f92 100644
 diff --git a/\applets\\pager\\pagermodel.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\pager\\pagermodel.cpp
 index 80ce477..e7809af 100644
 --- a/\applets\\pager\\pagermodel.cpp
-+++ b/\applets\\pager\\pagermodel.cpp
++++ b/applets//pager//pagermodel.cpp
 @@ -10,10 +10,13 @@
  #include "windowmodel.h"
  
@@ -237,7 +237,7 @@ index 80ce477..e7809af 100644
 diff --git a/\applets\\taskmanager\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\CMakeLists.txt
 index 06a8a96..da9b50d 100644
 --- a/\applets\\taskmanager\\CMakeLists.txt
-+++ b/\applets\\taskmanager\\CMakeLists.txt
++++ b/applets//taskmanager//CMakeLists.txt
 @@ -41,8 +41,13 @@ ecm_qt_declare_logging_category(org.kde.plasma.taskmanager
      CATEGORY_NAME org.kde.plasma.taskmanager)
  
@@ -263,7 +263,7 @@ index 06a8a96..da9b50d 100644
 diff --git a/\applets\\taskmanager\\backend.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\backend.cpp
 index 6516a7e..d5e0a12 100644
 --- a/\applets\\taskmanager\\backend.cpp
-+++ b/\applets\\taskmanager\\backend.cpp
++++ b/applets//taskmanager//backend.cpp
 @@ -38,8 +38,10 @@
  #include <PlasmaActivities/Stats/ResultSet>
  #include <PlasmaActivities/Stats/Terms>
@@ -296,7 +296,7 @@ index 6516a7e..d5e0a12 100644
 diff --git a/\applets\\taskmanager\\backend.h b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\backend.h
 index c9a30da..5d39466 100644
 --- a/\applets\\taskmanager\\backend.h
-+++ b/\applets\\taskmanager\\backend.h
++++ b/applets//taskmanager//backend.h
 @@ -11,7 +11,9 @@
  #include <QObject>
  #include <QRect>
@@ -310,7 +310,7 @@ index c9a30da..5d39466 100644
 diff --git a/\imports\\activitymanager\\switcherbackend.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\imports\\activitymanager\\switcherbackend.cpp
 index cd46d03..f76ebb9 100644
 --- a/\imports\\activitymanager\\switcherbackend.cpp
-+++ b/\imports\\activitymanager\\switcherbackend.cpp
++++ b/imports//activitymanager//switcherbackend.cpp
 @@ -33,7 +33,9 @@
  #if HAVE_X11
  #include <KX11Extras>
@@ -336,7 +336,7 @@ index cd46d03..f76ebb9 100644
 diff --git a/\desktoppackage\\contents\\applet\\CompactApplet.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\applet\\CompactApplet.qml
 index 1aba2a5..fbfa30e 100644
 --- a/\desktoppackage\\contents\\applet\\CompactApplet.qml
-+++ b/\desktoppackage\\contents\\applet\\CompactApplet.qml
++++ b/desktoppackage//contents//applet//CompactApplet.qml
 @@ -33,6 +33,9 @@ PlasmaCore.ToolTipArea {
      property PlasmoidItem plasmoidItem
  
@@ -350,7 +350,7 @@ index 1aba2a5..fbfa30e 100644
 diff --git a/\desktoppackage\\contents\\views\\Panel.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\views\\Panel.qml
 index 6dd16c1..0bc7111 100644
 --- a/\desktoppackage\\contents\\views\\Panel.qml
-+++ b/\desktoppackage\\contents\\views\\Panel.qml
++++ b/desktoppackage//contents//views//Panel.qml
 @@ -218,7 +218,7 @@ Item {
              floatingnessTarget = 1
              floatingApplets = true

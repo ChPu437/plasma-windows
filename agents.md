@@ -496,3 +496,32 @@ Lessons:
   Qt-level popup placement or panel strut support.
 * Plasma panels on Windows do not carry `Qt::X11BypassWindowManagerHint`;
   identify panels by shape (narrow strip) when popup placement needs it.
+
+# 13. Patch Workflow Discipline
+
+The project keeps canonical patch files in `patches/`; Craft applies them
+from the blueprint copies under `CraftRoot\etc\blueprints\locations\craft-blueprints-kde`.
+The two must stay in sync.
+
+Rules:
+
+1. **The build tree is the single source of truth for source changes.**
+   Edit the unpacked source (`CraftRoot\build\...\<pkg>\work\<pkg>-<ver>`),
+   then generate the patch from the diff - never hand-edit a patch file
+   (empty hunks, line-number drift and backslash paths all came from manual
+   editing).
+2. After any patch change:
+   - run `tools\sync-blueprints.ps1 -Sync` (copy to blueprints),
+   - update `patches\PATCHES.md`,
+   - run `tools\verify-patches.ps1` (static format checks),
+   - for the touched components, run `tools\rebuild-from-clean.ps1 -Package <pkg>`
+     (authoritative: craft re-applies patches from the clean tarball).
+3. Patch file hygiene: LF line endings only, forward slashes in paths, no
+   empty hunks, no absolute paths. `upstream-versions.json` pins the
+   tarball baseline (component/version/SHA256).
+4. Craft reports "up to date" even when patch files changed; forcing a real
+   rebuild requires deleting the work tree + `image-*` dirs first
+   (`rebuild-from-clean.ps1` does this).
+5. Never build `work\build` trees with a long cwd: paths exceed MAX_PATH
+   and cl.exe fails with a misleading `C1083 Invalid argument`. Drive
+   ninja from the Craft short path (`D:\_\<hash>\build`).

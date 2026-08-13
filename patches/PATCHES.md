@@ -274,6 +274,18 @@ taskbar work of M3.6-M3.7:
 adds `windowslist.cpp::setShowingDesktop` skipping windows of the
 current process (so "show desktop" never hides the plasma desktop/panel).
 
+Also carries (2026-08-13, re-verified by craft rebuild from clean tar):
+
+* `slideWindow` popup animation: KWin slide emulation for popups/dialogs
+  only (180 ms OutCubic position slide from the panel edge + opacity
+  fade-in; panels are excluded - a fade would break the floating panel's
+  height animation).
+* **AccentState enum fix**: `AccentEnableBlurbehind` is 3 and
+  `AccentEnableAcrylicBlurBehind` is 4 (the implementation used 4/5,
+  which map to ACRYLIC/HOSTBACKDROP; blur-behind popups fell back to a
+  plain translucent surface). Verified with `probe/blurprobe.cpp` and a
+  `GetWindowCompositionAttribute` readback.
+
 ## kiconthemes (6.28.0)
 
 `0001-windows-icon-theme-paths.patch` (new):
@@ -296,12 +308,28 @@ re-positioning in `PlasmaWindow::showEvent`, and removal of the
 `socketWindowPositionChanged` call in `updateVisibility` (it squashed
 the widget explorer).
 
+2026-08-13 update (craft-rebuild verified):
+
+* all `PLASMA-DEBUG` ad-hoc logging removed (the "visualParent NULL"
+  and "windowStateChanged" qWarning calls were never meant to stay).
+* **`Dialog::showEvent` re-applies `updateTheme()` on Windows**: the
+  popup's HWND only exists once the window is shown, so the
+  blur/background-contrast request made earlier (when QML set
+  backgroundHints) was dropped by the KWindowEffects backend and never
+  retried - popups stayed semi-transparent instead of blurred.
+
 ## libplasma (6.7.4) - 0004 window thumbnail
 
 `0004-windows-window-thumbnail.patch` - `WindowThumbnail` gets a
 Windows branch: live-ish window preview via `PrintWindow`
 (PW_RENDERFULLCONTENT -> RGB32 -> texture, refreshed every 500 ms while
 visible); icon fallback for minimized/invalid windows.
+
+2026-08-13 fix: the Windows icon-fallback path used
+`QStringLiteral(plasma)` (missing quotes - upstream writes
+`QStringLiteral("plasma")`); it only compiled because the object file
+was never rebuilt from the patched source. Fixed and verified by a
+craft rebuild from the clean tarball.
 
 ## kio (6.28.0) - Dolphin prerequisite
 
@@ -312,3 +340,44 @@ move special members of dllexport classes (`KFileItem(KFileItem&&)`,
 ("undefined symbol: QList<KFileItem>::QList(QList&&)"). Member-level
 export is impossible (C2487), hence the whole-library export. See
 `docs/dolphin-windows.md` for the Dolphin build.
+
+## kconfig (6.28.0)
+
+`0001-windows-trust-desktop-files.patch` (new, 2026-08-13): let
+`KDesktopFile` accept the generated `.desktop` bridge files used to
+expose native Windows apps (notepad/calc/...) in kickoff. Applied via
+Craft recipe `patchToApply["6.28.0"]` (blueprint
+`kde/frameworks/tier1/kconfig`).
+
+## Runtime data (not source patches)
+
+* **`CraftRoot\bin\data\wallpapers\Next` wallpaper package** (2026-08-13):
+  `defaultWallpaperPackage()` falls back to `wallpapers/Next`, which
+  Craft never installs; without it the image wallpaper's `providerType`
+  stays `Unknown`, `loadWallpaper()` never completes and **the panel is
+  never created** (UiReady never fires). The package contains
+  `metadata.json` (KPackageStructure `Wallpaper/Images`) and
+  `contents/images/1920x1080.png` (size-encoded filename so
+  `findPreferredImageInPackage` picks it). The older
+  `share\wallpapers\plasma-windows-default.png` + `Image=` config entry
+  is superseded by this (the config entry is lost on config restore,
+  the package is found automatically).
+
+## Build notes (craft rebuild, 2026-08-13)
+
+* Patches are applied by Craft with GNU `patch.exe` (MSYS build) from
+  the **blueprint copies** under
+  `CraftRoot\etc\blueprints\locations\craft-blueprints-kde\...` - keep
+  them in sync with `patches/` (there is no shared link).
+* **Never rebuild `work\build` trees with a long cwd**: paths like
+  `...\CMakeFiles\plasmashell-6.0-...-panels.dir\..._autogen\mocs_compilation.cpp.obj`
+  exceed MAX_PATH (260) and cl.exe fails with a misleading
+  `C1083: 无法打开源文件 ... Invalid argument`. Always drive ninja from
+  the Craft short path instead:
+  `ninja -C D:\_\9ad84e1c\build install` (short paths are per-package
+  junctions listed in `D:\_`).
+* A craft build from a clean tarball is the only reliable patch
+  validation (`craft --ignoreInstalled --no-cache <pkg>` after deleting
+  `build\kde\plasma\<pkg>\work` and the `image-*` dirs); the binary
+  cache and installdb otherwise report "up to date" and never reapply
+  the patches.

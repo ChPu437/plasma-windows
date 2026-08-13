@@ -1,4 +1,4 @@
-diff --git a/src/declarativeimports/core/windowthumbnail.cpp b/src/declarativeimports/core/windowthumbnail.cpp
+﻿diff --git a/src/declarativeimports/core/windowthumbnail.cpp b/src/declarativeimports/core/windowthumbnail.cpp
 index 6a54fd6..4779e98 100644
 --- a/src/declarativeimports/core/windowthumbnail.cpp
 +++ b/src/declarativeimports/core/windowthumbnail.cpp
@@ -78,7 +78,7 @@ index 6a54fd6..4779e98 100644
      if (!node) {
 @@ -406,11 +437,107 @@ void WindowThumbnail::iconToTexture(WindowTextureProvider *textureProvider)
          // fallback to plasma icon
-         icon = QIcon::fromTheme(QStringLiteral(plasma));
+         icon = QIcon::fromTheme(QStringLiteral("plasma"));
      }
 +#else
 +    {
@@ -98,7 +98,7 @@ index 6a54fd6..4779e98 100644
 +            DestroyIcon(hIcon);
 +        }
 +        if (icon.isNull()) {
-+            icon = QIcon::fromTheme(QStringLiteral(plasma));
++            icon = QIcon::fromTheme(QStringLiteral("plasma"));
 +        }
 +    }
  #endif

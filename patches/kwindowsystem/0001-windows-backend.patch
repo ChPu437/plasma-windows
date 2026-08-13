@@ -1270,8 +1270,8 @@ b/src/platforms/windows/windoweffects.cpp
 +    AccentDisabled = 0,
 +    AccentEnableGradient = 1,
 +    AccentEnableTransparentGradient = 2,
-+    AccentEnableBlurbehind = 4,
-+    AccentEnableAcrylicBlurBehind = 5,
++    AccentEnableBlurbehind = 3,
++    AccentEnableAcrylicBlurBehind = 4,
 +};
 +
 +enum WindowCompositionAttribute { WCA_ACCENT_POLICY = 19 };

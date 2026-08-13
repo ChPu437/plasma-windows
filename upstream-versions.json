@@ -1,0 +1,98 @@
+{
+    "generated": "2026-08-13",
+    "source": "download.kde.org, cached by Craft in CraftRoot\\download\\archives",
+    "hash_algorithm": "SHA256 (computed locally from the cached tarballs)",
+    "notes": "kactivitymanagerd is not shipped by the craft blueprints; its tarball was hand-built and lives in CraftRoot\\build\\custom\\kactivitymanagerd\\src.tar.xz.",
+    "components": {
+        "kconfig": {
+            "version": "6.28.0",
+            "tarball": "kconfig-6.28.0.tar.xz",
+            "sha256": "24e26e516b7904a26661eab7d2064bee1ac57165571e85b4da6020fd36f14322",
+            "patches": ["0001-windows-trust-desktop-files.patch"]
+        },
+        "kcoreaddons": {
+            "version": "6.28.0",
+            "tarball": "kcoreaddons-6.28.0.tar.xz",
+            "sha256": "a713febee2f43bc31986d6c27d846ccab556fc7bc7c1919c3a662495720b431a",
+            "patches": ["0001-skip-sam-user-picture.patch"]
+        },
+        "kwindowsystem": {
+            "version": "6.28.0",
+            "tarball": "kwindowsystem-6.28.0.tar.xz",
+            "sha256": "5adbdf9c82b1ecbb92bda6498ea1b8f88c08f9ec57dbff70d582e2453bf16b12",
+            "patches": ["0001-windows-backend.patch"]
+        },
+        "kauth": {
+            "version": "6.28.0",
+            "tarball": "kauth-6.28.0.tar.xz",
+            "sha256": "fb4d90ee46a2f6202e53cdd5af8f77069c380955e3f340881f2f36ec8312079b",
+            "patches": ["0001-windows-build-fixes.patch", "0002-qmetatype-gui-helper-qt610.patch", "0001-dbus-backend-find-qt6dbus.patch"]
+        },
+        "kded": {
+            "version": "6.28.0",
+            "tarball": "kded-6.28.0.tar.xz",
+            "sha256": "31ba5c920b199dd13fff634001d22c993df3d639a8df989e0a55ec1d13a8279f",
+            "patches": ["0001-skip-posix-signal-handling-on-windows.patch"]
+        },
+        "kiconthemes": {
+            "version": "6.28.0",
+            "tarball": "kiconthemes-6.28.0.tar.xz",
+            "sha256": "edf83069f25f8edf759d07502a6f8302c8c064cd562651deedefe6393fefcace",
+            "patches": ["0001-windows-icon-theme-paths.patch"]
+        },
+        "kio": {
+            "version": "6.28.0",
+            "tarball": "kio-6.28.0.tar.xz",
+            "sha256": "158f47746806c3dd87a09091eaa46ffee286cd658f9e26b4422656b66176627a",
+            "patches": ["0001-windows-export-all-symbols.patch"]
+        },
+        "krunner": {
+            "version": "6.28.0",
+            "tarball": "krunner-6.28.0.tar.xz",
+            "sha256": "c4c1fccbe6e04acc8d5891df4eca20a4b6be24c032a10e92839a41c1bb847cc4",
+            "patches": ["0001-find-qt6dbus.patch", "0002-dbusrunner-wayland-guard.patch"]
+        },
+        "qtbase": {
+            "version": "6.11.1",
+            "tarball": "qtbase-everywhere-src-6.11.1.tar.xz",
+            "sha256": "d9594a31228aa23ad6b531719a29b45f0f3989fe6c136d45767ea179f233c1ac",
+            "patches": ["0001-modernwindows-style-sdk19041-fallback.patch"]
+        },
+        "libplasma": {
+            "version": "6.7.4",
+            "tarball": "libplasma-6.7.4.tar.xz",
+            "sha256": "8f187850ea0cd46e545b33787619fa28f682388e4b828d090a0692874a7c9955",
+            "patches": ["0001-wayland-optional.patch", "0002-subdir-wayland-guards.patch", "0003-windows-popup-positioning.patch", "0004-windows-window-thumbnail.patch"]
+        },
+        "plasma-activities-stats": {
+            "version": "6.7.4",
+            "tarball": "plasma-activities-stats-6.7.4.tar.xz",
+            "sha256": "98b888372c7f74c60b02af6e1ca8b18fe8262748febf5e0480bd0ecc9e2bddef",
+            "patches": ["0001-export-const-iterator-members.patch"]
+        },
+        "plasma-desktop": {
+            "version": "6.7.4",
+            "tarball": "plasma-desktop-6.7.4.tar.xz",
+            "sha256": "c2f0c2b7ab70cbd99ef17ffad4c3117dab12ef6a71790da33e39688386474962",
+            "patches": ["0001-windows-minimal-scope.patch"]
+        },
+        "plasma-workspace": {
+            "version": "6.7.4",
+            "tarball": "plasma-workspace-6.7.4.tar.xz",
+            "sha256": "21ec3c002929eb65377a1ae0eb105b9ab6f608049dac5493e188f51bd50398d5",
+            "patches": ["0001-windows-build-conditions.patch", "0002-subdir-wayland-guards.patch", "0003-minimal-shell-subsets.patch", "0004-windows-m36-shell.patch"]
+        },
+        "plasma5support": {
+            "version": "6.7.4",
+            "tarball": "plasma5support-6.7.4.tar.xz",
+            "sha256": "793fd67604547f34c6ecc89104c9d39c56d388b6b73181302e5c8d775782e6dd",
+            "patches": ["0001-windows-build-fixes.patch"]
+        },
+        "kactivitymanagerd": {
+            "version": "6.7.4",
+            "tarball": "src.tar.xz (local, CraftRoot\\build\\custom\\kactivitymanagerd)",
+            "sha256": "b2e9c2537ddcc243774d41355428335167c2bb8e9fc48143c4e467528536c87f",
+            "patches": ["0001-sqlite-plugin-portable-sleep.patch", "0002-version-header-case-collision.patch", "0003-version-header-case-collision-cmake.patch", "0004-sqlite-plugin-optional.patch"]
+        }
+    }
+}

@@ -1,7 +1,7 @@
-diff --git a/\CMakeLists.txt b/D:\\_\\6e12b6ce\\plasma5support-6.7.4\\CMakeLists.txt
+﻿diff --git a/\CMakeLists.txt b/D:\\_\\6e12b6ce\\plasma5support-6.7.4\\CMakeLists.txt
 index 024258d..afd449d 100644
 --- a/\CMakeLists.txt
-+++ b/\CMakeLists.txt
++++ b/CMakeLists.txt
 @@ -44,7 +44,7 @@ ecm_setup_version(PROJECT
  add_definitions(-DQT_NO_FOREACH)
  ################# now find all used packages #################
@@ -23,7 +23,7 @@ index 024258d..afd449d 100644
 diff --git a/\src\\CMakeLists.txt b/D:\\_\\6e12b6ce\\plasma5support-6.7.4\\src\\CMakeLists.txt
 index d0c050b..ac6c9fe 100644
 --- a/\src\\CMakeLists.txt
-+++ b/\src\\CMakeLists.txt
++++ b/src/CMakeLists.txt
 @@ -2,7 +2,7 @@ configure_file(config-X11.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-X11.h)
  
  add_subdirectory(plasma5support)

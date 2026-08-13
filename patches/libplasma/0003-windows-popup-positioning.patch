@@ -1,7 +1,7 @@
-diff --git a/src/plasmaquick/dialog.h b/src/plasmaquick/dialog.h
+﻿diff --git a/src/plasmaquick/dialog.h b/src/plasmaquick/dialog.h
 index a671cd9..f16ce37 100644
 --- a/src/plasmaquick/dialog.h
-+++ b/\src/plasmaquick/dialog.h
++++ b/src/plasmaquick/dialog.h
 @@ -66,6 +66,11 @@ class PLASMAQUICK_EXPORT Dialog : public QQuickWindow, public QQmlParserStatus
       */
      Q_PROPERTY(QQuickItem *visualParent READ visualParent WRITE setVisualParent NOTIFY visualParentChanged)
@@ -17,7 +17,7 @@ index a671cd9..f16ce37 100644
 diff --git a/src/plasmaquick/dialog.cpp b/src/plasmaquick/dialog.cpp
 index 729325a..2b44cf9 100644
 --- a/src/plasmaquick/dialog.cpp
-+++ b/\src/plasmaquick/dialog.cpp
++++ b/src/plasmaquick/dialog.cpp
 @@ -15,6 +15,7 @@
  #include "debug_p.h"
  #include "dialogbackground_p.h"
@@ -37,7 +37,7 @@ index 729325a..2b44cf9 100644
  #include <KWindowInfo>
  #include <KWindowSystem>
  #ifndef Q_OS_WIN
-@@ -291,12 +296,21 @@ void DialogPrivate::updateVisibility(bool visible)
+@@ -291,12 +296,17 @@ void DialogPrivate::updateVisibility(bool visible)
          } else {
              if (!cachedGeometry.isNull()) {
                  q->resize(cachedGeometry.size());
@@ -55,25 +55,12 @@ index 729325a..2b44cf9 100644
 +            // when the window is still at its initial size on first show.
 +            if (visualParent) {
 +                q->setPosition(q->popupPosition(visualParent, q->size()));
-+            } else {
-+                qWarning().noquote() << QStringLiteral("PLASMA-DEBUG show: visualParent NULL")
-+                                     << QStringLiteral("class=") << q->metaObject()->className()
-+                                     << QStringLiteral("objectName=") << q->objectName();
 +            }
 +            cachedGeometry = QRect();
- 
+
              if (mainItem) {
                  syncToMainItemSize();
-@@ -936,6 +950,8 @@ Dialog::Dialog(QQuickItem *parent)
-     // Given dialogs are skip task bar and don't have a decoration
-     // minimizing them using e.g. "minimize all" should just close them
-     connect(this, &QWindow::windowStateChanged, this, [this](Qt::WindowState newState) {
-+        qWarning().noquote() << QStringLiteral("PLASMA-DEBUG windowStateChanged class=") << metaObject()->className()
-+                             << QStringLiteral("obj=") << objectName() << QStringLiteral("state=") << int(newState);
-         if (newState == Qt::WindowMinimized) {
-             setVisible(false);
-         }
-@@ -1078,16 +1094,40 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
+@@ -1078,16 +1087,40 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
          }
      }
  
@@ -115,7 +102,7 @@ index 729325a..2b44cf9 100644
  
      if (KWindowSystem::isPlatformX11()) {
          // on X11 we also consider windows with the type Dock
-@@ -1101,7 +1141,7 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
+@@ -1101,7 +1134,7 @@ QPoint Dialog::popupPosition(QQuickItem *item, const QSize &size)
      } else {
          parentGeometryBounds = item->mapRectToScene(item->boundingRect()).toRect();
          if (item->window()) {
@@ -124,7 +111,29 @@ index 729325a..2b44cf9 100644
              pos = parentGeometryBounds.topLeft();
          }
      }
-@@ -1567,6 +1607,17 @@ void Dialog::classBegin()
+@@ -1359,14 +1399,21 @@ void Dialog::showEvent(QShowEvent *event)
+    d->updateResizableEdges();
+    d->updateSizeFromAppletInterface();
+
+    if (d->backgroundHints != Dialog::NoBackground) {
+        DialogShadows::instance()->addWindow(this, d->dialogBackground->enabledBorders());
+    }
+
++#ifdef Q_OS_WIN
++    // The window handle only exists once the window is shown; blur/contrast
++    // requested earlier (via backgroundHints) would have been dropped by the
++    // KWindowEffects backend. Re-apply now that the HWND is real.
++    d->updateTheme();
++#endif
++
+ #ifndef Q_OS_WIN
+     if (KWindowSystem::isPlatformX11()) {
+         KX11Extras::setState(winId(), NET::SkipTaskbar | NET::SkipPager | NET::SkipSwitcher);
+     }
+ #endif
+     QQuickWindow::showEvent(event);
+ }
+@@ -1567,6 +1600,17 @@ void Dialog::classBegin()
  void Dialog::componentComplete()
  {
      d->componentComplete = true;
@@ -139,13 +148,13 @@ index 729325a..2b44cf9 100644
 +        setPosition(QPoint(-32000, -32000));
 +    }
 +#endif
-     QQuickWindow::setVisible(d->visible);
-     d->updateTheme();
+    QQuickWindow::setVisible(d->visible);
+    d->updateTheme();
  }
 diff --git a/src/plasmaquick/plasmawindow.cpp b/src/plasmaquick/plasmawindow.cpp
 index 193f9a9..8fc6dd2 100644
 --- a/src/plasmaquick/plasmawindow.cpp
-+++ b/\src/plasmaquick/plasmawindow.cpp
++++ b/src/plasmaquick/plasmawindow.cpp
 @@ -4,12 +4,15 @@
  */
  
@@ -162,7 +171,7 @@ index 193f9a9..8fc6dd2 100644
  
  #include <KWindowEffects>
  #include <KWindowSystem>
-@@ -150,6 +153,31 @@ void PlasmaWindow::showEvent(QShowEvent *e)
+@@ -150,5 +153,37 @@ void PlasmaWindow::showEvent(QShowEvent *e)
          KX11Extras::setState(winId(), NET::SkipTaskbar | NET::SkipPager | NET::SkipSwitcher);
  #endif
      }
@@ -191,13 +200,19 @@ index 193f9a9..8fc6dd2 100644
 +#endif
 +        }
 +    }
++#ifdef Q_OS_WIN
++    // The window handle only exists once the window is shown; the blur/
++    // contrast request made earlier (DialogBackground::maskChanged before
++    // the HWND existed) was dropped by the KWindowEffects backend.
++    // Re-apply now that the HWND is real.
++    d->handleFrameChanged();
++#endif
      QQuickWindow::showEvent(e);
  }
- 
 diff --git a/src/plasmaquick/appletquickitem.cpp b/src/plasmaquick/appletquickitem.cpp
 index 9207313..a903e5e 100644
 --- a/src/plasmaquick/appletquickitem.cpp
-+++ b/\src/plasmaquick/appletquickitem.cpp
++++ b/src/plasmaquick/appletquickitem.cpp
 @@ -9,6 +9,7 @@
  
  #include "appletcontext_p.h"
@@ -226,7 +241,7 @@ index 9207313..a903e5e 100644
 diff --git a/src/plasmaquick/popupplasmawindow.cpp b/src/plasmaquick/popupplasmawindow.cpp
 index b4d8a99..b511d27 100644
 --- a/src/plasmaquick/popupplasmawindow.cpp
-+++ b/\src/plasmaquick/popupplasmawindow.cpp
++++ b/src/plasmaquick/popupplasmawindow.cpp
 @@ -137,6 +137,25 @@ void PopupPlasmaWindowPrivate::updatePosition()
  {
      m_needsReposition = false;
