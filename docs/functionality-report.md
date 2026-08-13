@@ -18,7 +18,11 @@ implemented.
   2560x1440 on the test machine) kept at the bottom of the window stack
   (`HWND_BOTTOM` + `WS_EX_NOACTIVATE`; re-asserted on
   Expose/ActivationChange so owner-chain raises and edit mode cannot
-  lift it above other windows). Wallpaper: generated gradient PNG.
+  lift it above other windows). Wallpaper: a `Next` wallpaper package is
+  installed at `CraftRoot\bin\data\wallpapers\Next` (metadata.json +
+  contents/images/1920x1080.png). Without it the image wallpaper's
+  providerType stays `Unknown`, `loadWallpaper()` never completes and
+  **the panel is never created** (UiReady never fires).
 
 ### 1.2 Desktop right-click menu / edit mode **[OK]**
 - KDE: containment context menu; edit mode shows the DesktopEditMode UI
@@ -78,7 +82,10 @@ implemented.
 ### 3.4 Clock / system tray **[PARTIAL]**
 - Clock works; tray shows SNI items (statusnotifierwatcher runs) but
   the **network and volume applets are missing** (PulseAudio
-  dependency) - needs a native Windows bridge.
+  dependency) - needs a native Windows bridge. The native volume /
+  input-method applets (`src/applets/volumewin|imewin`) exist but do
+  not run yet (C++ plugin DLL never built/installed - see
+  `docs/roadmap.md`).
 
 ## 4. Popups and windows
 
@@ -136,9 +143,13 @@ implemented.
 
 ## 8. Not implemented / deferred
 
+- Popup blur (kickoff etc.) - accent-state enum and HWND-timing bugs
+  fixed, still translucent; hypotheses in `docs/roadmap.md`
+- Native volume/IME applets (volumewin/imewin) - package metadata done,
+  C++ plugin build missing
 - Live taskbar thumbnails (DwmRegisterThumbnail + tooltip background
   punch-out)
-- Tray network/volume applets (PulseAudio dependency - native bridge)
+- Tray network applet (PulseAudio dependency - native bridge)
 - Taskbar grouping/pinning/context-menu validation
 - Desktop icons drag-drop validation
 - kglobalacceld (global shortcuts)
