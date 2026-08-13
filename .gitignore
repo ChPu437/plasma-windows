@@ -11,3 +11,8 @@ research/
 *.lib
 *.moc
 _*_out/
+
+# tray spike build artifacts
+src/trayhost/spike/*.exe
+src/trayhost/spike/*.log
+src/trayhost/spike/*.obj
