@@ -7,6 +7,8 @@
 #include <QObject>
 #include <QTimer>
 
+#include <windows.h>
+
 class ImeController : public QObject
 {
     Q_OBJECT
@@ -30,4 +32,5 @@ private:
     QTimer m_timer;
     QString m_name;
     QString m_code;
+    HWND m_targetWnd = nullptr;
 };

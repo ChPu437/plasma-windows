@@ -29,6 +29,16 @@ void ImeController::refresh()
 {
     // The IME of the *foreground* window's thread, not ours.
     const HWND fg = GetForegroundWindow();
+    // Remember the real user window: when the panel is clicked, the
+    // foreground window is our own shell, but the layout switch must be
+    // sent to the application the user actually uses.
+    if (fg && fg != m_targetWnd) {
+        DWORD fgPid = 0;
+        GetWindowThreadProcessId(fg, &fgPid);
+        if (fgPid != GetCurrentProcessId()) {
+            m_targetWnd = fg;
+        }
+    }
     const DWORD tid = fg ? GetWindowThreadProcessId(fg, nullptr) : 0;
     const HKL hkl = GetKeyboardLayout(tid);
     const LANGID lang = LOWORD(hkl);
@@ -69,11 +79,16 @@ void ImeController::toggle()
     if (count <= 0) {
         return;
     }
-    const HWND fg = GetForegroundWindow();
-    if (!fg) {
+    // Prefer the last real user window; fall back to the current
+    // foreground (which after clicking our panel is the shell itself).
+    HWND target = m_targetWnd;
+    if (!target || !IsWindow(target)) {
+        target = GetForegroundWindow();
+    }
+    if (!target) {
         return;
     }
-    const HKL cur = GetKeyboardLayout(GetWindowThreadProcessId(fg, nullptr));
+    const HKL cur = GetKeyboardLayout(GetWindowThreadProcessId(target, nullptr));
     HKL next = list[0];
     for (int i = 0; i < count; ++i) {
         if (list[i] == cur) {
@@ -81,7 +96,7 @@ void ImeController::toggle()
             break;
         }
     }
-    PostMessageW(fg, WM_INPUTLANGCHANGEREQUEST, 0, reinterpret_cast<LPARAM>(next));
+    PostMessageW(target, WM_INPUTLANGCHANGEREQUEST, 0, reinterpret_cast<LPARAM>(next));
     refresh();
 }
 

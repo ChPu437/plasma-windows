@@ -1,4 +1,4 @@
-/*
+﻿/*
     SPDX-FileCopyrightText: 2026 Plasma Windows contributors
     SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
 */
@@ -17,14 +17,36 @@ PlasmoidItem {
 
         Text {
             anchors.centerIn: parent
-            text: ime.layoutCode
-            font.pixelSize: Kirigami.Units.fontMetrics.fontSize
+            text: ime.layoutCode || "IME"
+            font.pixelSize: Kirigami.Units.iconSizes.smallMedium
             font.bold: true
             color: Kirigami.Theme.textColor
         }
         MouseArea {
             anchors.fill: parent
             onClicked: ime.toggle()
+        }
+    }
+
+    fullRepresentation: Item {
+        Layout.preferredWidth: Kirigami.Units.gridUnit * 4
+        Layout.preferredHeight: Kirigami.Units.gridUnit * 2
+
+        RowLayout {
+            anchors.centerIn: parent
+            spacing: Kirigami.Units.smallSpacing
+
+            Text {
+                text: ime.layoutCode || "IME"
+                font.pixelSize: Kirigami.Units.iconSizes.smallMedium
+                font.bold: true
+                color: Kirigami.Theme.textColor
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onPressed: ime.toggle()
         }
     }
 
