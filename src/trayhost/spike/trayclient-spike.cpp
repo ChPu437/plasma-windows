@@ -26,26 +26,27 @@ static LRESULT CALLBACK CallbackWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-static BOOL DoNim(UINT action, const wchar_t *what)
+static BOOL DoNim(UINT action, const wchar_t *what, bool useGuid)
 {
     NOTIFYICONDATAW nid = {};
     nid.cbSize = sizeof(nid);
     nid.hWnd = g_cbWnd;
     nid.uID = 42;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | (useGuid ? NIF_GUID : 0);
     nid.uCallbackMessage = g_cbMsg;
     nid.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
-    wcsncpy_s(nid.szTip, _TRUNCATE, L"trayclient-spike", 64);
+    wcsncpy_s(nid.szTip, _TRUNCATE, useGuid ? L"trayclient-spike-guid" : L"trayclient-spike-noguid", 64);
     nid.guidItem = {0x11111111, 0x2222, 0x3333, {0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB}};
 
     const BOOL ok = Shell_NotifyIconW(action, &nid);
-    printf("[client] %s -> %s (err=%lu)\n", what, ok ? "TRUE" : "FALSE", GetLastError());
+    printf("[client] %S -> %s (err=%lu)\n", what, ok ? "TRUE" : "FALSE", GetLastError());
     return ok;
 }
 
-int main()
+int main(int argc, char **argv)
 {
-    printf("trayclient-spike starting\n");
+    const bool useGuid = (argc < 2 || _stricmp(argv[1], "-noguid") != 0);
+    printf("trayclient-spike starting (guid=%s)\n", useGuid ? "yes" : "no");
 
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(wc);
@@ -58,11 +59,11 @@ int main()
     g_cbMsg = WM_APP + 0x42;
     printf("[client] callback window %p, message 0x%X\n", (void *)g_cbWnd, (unsigned)g_cbMsg);
 
-    if (!DoNim(NIM_ADD, L"NIM_ADD")) {
+    if (!DoNim(NIM_ADD, L"NIM_ADD", useGuid)) {
         printf("[client] NIM_ADD failed - no notification area receiver?\n");
     }
     Sleep(3000);
-    DoNim(NIM_MODIFY, L"NIM_MODIFY");
+    DoNim(NIM_MODIFY, L"NIM_MODIFY", useGuid);
     Sleep(3000);
 
     MSG msg;
@@ -70,7 +71,7 @@ int main()
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
-    DoNim(NIM_DELETE, L"NIM_DELETE");
+    DoNim(NIM_DELETE, L"NIM_DELETE", useGuid);
     printf("[client] done\n");
     return 0;
 }
