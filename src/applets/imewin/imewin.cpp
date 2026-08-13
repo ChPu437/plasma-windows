@@ -6,8 +6,8 @@
 #include <QObject>
 
 #include <KPluginFactory>
-#include <Plasma/Applet>
-#include <Plasma/Containment>
+#include <plasma/applet.h>
+#include <plasma/containment.h>
 
 #include "imecontroller.h"
 
@@ -32,6 +32,6 @@ public:
     }
 };
 
-K_PLUGIN_CLASS_WITH_JSON(ImeWinApplet, "plasmoid.json")
+K_PLUGIN_CLASS_WITH_JSON(ImeWinApplet, "plasmoid/metadata.json")
 
 #include "imewin.moc"

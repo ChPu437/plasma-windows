@@ -4,3 +4,9 @@ build/
 vm-package/
 *.dmp
 *.obj
+
+# applet build artifacts (tools/build-applets.cmd)
+*.exp
+*.lib
+*.moc
+_*_out/

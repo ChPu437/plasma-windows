@@ -1,12 +1,12 @@
-/*
+﻿/*
     SPDX-FileCopyrightText: 2026 Plasma Windows contributors
     SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
 */
 #include <QObject>
 
 #include <KPluginFactory>
-#include <Plasma/Applet>
-#include <Plasma/Containment>
+#include <plasma/applet.h>
+#include <plasma/containment.h>
 
 #include "volumecontroller.h"
 
@@ -31,6 +31,6 @@ public:
     }
 };
 
-K_PLUGIN_CLASS_WITH_JSON(VolumeWinApplet, "plasmoid.json")
+K_PLUGIN_CLASS_WITH_JSON(VolumeWinApplet, "plasmoid/metadata.json")
 
 #include "volumewin.moc"
