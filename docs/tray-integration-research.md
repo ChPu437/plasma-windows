@@ -116,6 +116,11 @@ broadcast `TaskbarCreated` after the tray window exists.
   * Reimplement overflow / hide-inactive-icons / balloon UI ourselves.
   * `NIM_SETVERSION` + GUID-based v4 items add protocol surface.
 
+The full protocol study (how ManagedShell implements this, window
+classes, WM_COPYDATA payloads, click forwarding semantics, balloons,
+coexistence import, and our C++/Qt adaptation plan) is in
+`docs/tray-host-cairo-study.md`; sources in `research/` (gitignored).
+
 ## 4. Why hooking is the (unwanted) consequence of the API shape
 
 `Shell_NotifyIcon(NIM_ADD, &nid)` has **no receiver parameter**:
