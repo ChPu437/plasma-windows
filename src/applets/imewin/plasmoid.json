@@ -1,9 +1,8 @@
 {
     "KPlugin": {
-        "Id": "org.kde.plasma.volumewin",
-        "Name": "Volume (Windows)",
-        "Description": "Control the system master volume (Windows native)",
-        "Icon": "audio-volume-high",
+        "Name": "Input Method",
+        "Description": "Show and switch the input method (Windows native)",
+        "Icon": "input-keyboard",
         "ServiceTypes": [
             "Plasma/Applet"
         ],

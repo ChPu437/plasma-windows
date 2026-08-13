@@ -1,6 +1,5 @@
 {
     "KPlugin": {
-        "Id": "org.kde.plasma.volumewin",
         "Name": "Volume (Windows)",
         "Description": "Control the system master volume (Windows native)",
         "Icon": "audio-volume-high",
