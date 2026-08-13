@@ -275,6 +275,26 @@ the work tree too), and re-synced the `windowswindowtasksmodel.cpp`
 hunk line count (457 -> 456 after the PLASMA-DEBUG removal). Reverse
 dry-run against the work tree now passes for the whole patch.
 
+`0005-windows-panel-activatable.patch` (applied after 0004) - keep the
+panel activatable on Windows so third-party tray popup menus dismiss
+correctly:
+
+* `shell/panelview.cpp`: do not set `Qt::WindowDoesNotAcceptFocus` on
+  Windows (constructor and both `refreshStatus` branches). The
+  constructor flag maps to `WS_EX_NOACTIVATE`; with it set, clicking the
+  panel never produces a focus change, so `TrackPopupMenu` menus (and
+  Chromium self-drawn menus) opened from tray icons stay open until an
+  item is clicked. Keeping the panel activatable mirrors how the real
+  Explorer taskbar behaves.
+
+Note: the desktop window keeps its `WS_EX_NOACTIVATE` (0004) on purpose.
+Making it activatable (or activating the panel from a desktop click)
+causes every window to flash: activation raises the full-screen desktop
+and the HWND_BOTTOM re-assertion pulls it back (and any deferred
+SetForegroundWindow triggers a DWM animation). Trade-off accepted for
+now: tray popup menus are dismissed by clicking other windows or the
+panel, not the desktop.
+
 ## kwindowsystem (6.28.0) - 0001 updated
 
 `0001-windows-backend.patch` regenerated from the clean 6.28.0 source;

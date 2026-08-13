@@ -6,12 +6,27 @@
 #include "windowstrayhost.h"
 
 #include <QCoreApplication>
+#include <QDBusMessage>
 #include <QDateTime>
 #include <QFile>
 #include <QHash>
 #include <QTextStream>
 
 #include <shellapi.h>
+
+#include "snibridge.h"
+
+QFile s_logFile;
+QTextStream s_log;
+
+void logLine(const QString &line)
+{
+    if (s_logFile.isOpen()) {
+        s_log << QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss.zzz")) << QLatin1Char(' ')
+              << line << Qt::endl;
+        s_log.flush();
+    }
+}
 
 namespace
 {
@@ -42,17 +57,6 @@ struct NidLayout
     GUID guidItem;
     DWORD hBalloonIcon;
 };
-
-QFile s_logFile;
-QTextStream s_log;
-
-void logLine(const QString &line)
-{
-    if (s_logFile.isOpen()) {
-        s_log << QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss.zzz")) << QLatin1Char(' ')
-              << line << Qt::endl;
-    }
-}
 
 QString guidToString(const GUID &g)
 {
@@ -216,25 +220,81 @@ void WindowsTrayHost::handleTrayMessage(UINT message, const void *nidPtr)
     const bool hasGuid = (nid->uFlags & NIF_GUID) && nid->guidItem.Data1 != 0;
     const QByteArray guidKey(reinterpret_cast<const char *>(&nid->guidItem), sizeof(GUID));
 
+    // Windows system tray icons (Volume, Network, Security/Defender, ...)
+    // live in explorer and carry the fixed 7820AE7x-23E3-4229-82C1-
+    // E41CB67D5B9C GUID family. They cannot be driven through SNI (the
+    // system owns their clicks); skip them here - our own system-tray
+    // widgets will surface them later.
+    if (hasGuid && nid->guidItem.Data2 == 0x23E3 && nid->guidItem.Data3 == 0x4229
+        && nid->guidItem.Data4[0] == 0x82 && nid->guidItem.Data4[1] == 0xC1
+        && nid->guidItem.Data4[2] == 0xE4 && nid->guidItem.Data4[3] == 0x1C
+        && nid->guidItem.Data4[4] == 0xB6 && nid->guidItem.Data4[5] == 0x7D
+        && nid->guidItem.Data4[6] == 0x5B && nid->guidItem.Data4[7] == 0x9C
+        && nid->guidItem.Data1 >= 0x7820AE73 && nid->guidItem.Data1 <= 0x7820AE7F) {
+        logLine(QStringLiteral("  SKIP system icon guid=%1 key=0x%2")
+                    .arg(guidToString(nid->guidItem))
+                    .arg(key, 0, 16));
+        return;
+    }
+
     if (message == NIM_SETVERSION) {
         auto it = m_icons.find(key);
         if (it != m_icons.end()) {
             it->version = nid->uVersion;
+            // Guard against stale e.bridge pointers left behind by DELETE
+            // messages whose (drifted) key never matched the entry.
+            if (it->bridge && m_bridges.value(key) == it->bridge) {
+                it->bridge->setCallback(it->hwnd, it->uID, it->callbackMessage, it->version);
+            }
             logLine(QStringLiteral("  SETVERSION key=0x%1 version=%2").arg(key, 0, 16).arg(nid->uVersion));
         } else {
             logLine(QStringLiteral("  SETVERSION for unknown key=0x%1 version=%2").arg(key, 0, 16).arg(nid->uVersion));
         }
         return;
     }
-
     if (message == NIM_DELETE) {
-        const bool erased = m_icons.remove(key) > 0 || m_icons.remove(m_guidMap.take(guidKey)) > 0;
+        // Guid-registered icons live under the mapped primary key, not the
+        // raw (hwnd, uID) pair - use the same resolution as ADD/MODIFY.
+        quint64 delKey = key;
+        if (hasGuid) {
+            const auto git = m_guidMap.constFind(guidKey);
+            if (git != m_guidMap.constEnd()) {
+                delKey = git.value();
+            }
+        }
+        bool erased = m_icons.contains(delKey);
+        if (!erased) {
+            // shell32 rewrites hWnd in the SHELLTRAYDATA payload and the
+            // value can drift between ADD and DELETE, so the raw key misses.
+            // Fall back to (owner process, uID) when the delete window is a
+            // real window; guid is already handled above.
+            DWORD delPid = 0;
+            const HWND delHwnd = reinterpret_cast<HWND>(static_cast<quintptr>(nid->hWnd));
+            if (GetWindowThreadProcessId(delHwnd, &delPid) && delPid != 0) {
+                for (auto it = m_icons.constBegin(); it != m_icons.constEnd(); ++it) {
+                    DWORD pid = 0;
+                    if (it.value().hwnd && !it.value().hasGuid && GetWindowThreadProcessId(it.value().hwnd, &pid)
+                        && pid == delPid && it.value().uID == nid->uID) {
+                        delKey = it.key();
+                        erased = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (erased) {
+            m_icons.remove(delKey);
+        }
+        if (hasGuid) {
+            m_guidMap.remove(guidKey);
+        }
         logLine(QStringLiteral("  DELETE key=0x%1 hwnd=0x%2 uID=%3 guid=%4 -> %5")
-                    .arg(key, 0, 16)
+                    .arg(delKey, 0, 16)
                     .arg(nid->hWnd, 0, 16)
                     .arg(nid->uID)
                     .arg(hasGuid ? guidToString(nid->guidItem) : QStringLiteral("-"))
                     .arg(erased ? QStringLiteral("removed") : QStringLiteral("unknown")));
+        unregisterBridge(delKey);
         return;
     }
 
@@ -279,6 +339,23 @@ void WindowsTrayHost::handleTrayMessage(UINT message, const void *nidPtr)
                     .arg(nid->dwInfoFlags, 0, 16));
     }
 
+    // keep the SNI bridge in sync
+    Snibridge *bridge = e.bridge;
+    if (!bridge || m_bridges.value(primaryKey) != bridge) {
+        e.bridge = registerBridge(primaryKey, e);
+        bridge = e.bridge;
+    } else {
+        if (nid->uFlags & NIF_ICON && nid->hIcon) {
+            bridge->setIcon(reinterpret_cast<HICON>(nid->hIcon));
+        }
+        if (nid->uFlags & NIF_TIP) {
+            bridge->setTitle(e.tip);
+        }
+        if (nid->uFlags & NIF_MESSAGE) {
+            bridge->setCallback(e.hwnd, e.uID, e.callbackMessage, e.version);
+        }
+    }
+
     logLine(QStringLiteral("  %1 key=0x%2 hwnd=0x%3 uID=%4 cbSize=%5 flags=%6 tip=[%7] msg=0x%8")
                 .arg(action)
                 .arg(primaryKey, 0, 16)
@@ -305,8 +382,81 @@ void WindowsTrayHost::handleNotifyRect(const void *data, DWORD cbData)
     // placement; for now return (0,0) - only used for tooltip positioning.
 }
 
+void WindowsTrayHost::unregisterBridge(quint64 key)
+{
+    Snibridge *bridge = m_bridges.take(key);
+    if (!bridge) {
+        return;
+    }
+    // Destroy the bridge object first, then disconnect its bus connection
+    // on a deferred timer: disconnecting while the adaptor is still alive
+    // races Qt's connection teardown and crashed (Qt6Core 0xf2ec2/0xf754d)
+    // under DELETE/ADD churn (Wallpaper Engine re-registers constantly).
+    const QString serviceName = bridge->serviceName();
+    bridge->deleteLater();
+    QTimer::singleShot(100, this, [serviceName]() {
+        QDBusConnection::disconnectFromBus(serviceName);
+    });
+    logLine(QStringLiteral("  SNI unregistered: %1").arg(bridge->id()));
+}
+
+Snibridge *WindowsTrayHost::registerBridge(quint64 key, const IconEntry &e)
+{
+    auto *bridge = new Snibridge(this);
+    const QString service = QStringLiteral("org.kde.StatusNotifierItem-%1-%2")
+                                .arg(QCoreApplication::applicationPid())
+                                .arg(m_nextBridgeId++);
+    bridge->setCallback(e.hwnd, e.uID, e.callbackMessage, e.version);
+    bridge->setServiceName(service);
+    bridge->setTitle(e.tip);
+    bridge->setIcon(reinterpret_cast<HICON>(e.hIcon));
+    // Second adaptor: org.freedesktop.DBus.Properties (GetAll), which the
+    // dynamic registerObject path does not synthesize from Q_PROPERTYs.
+    new SnibridgeProperties(bridge);
+    QDBusConnection conn = QDBusConnection::connectToBus(QDBusConnection::SessionBus, service);
+    if (!conn.isConnected() || !conn.registerService(service)) {
+        logLine(QStringLiteral("  SNI registerService failed for %1").arg(service));
+        delete bridge;
+        return nullptr;
+    }
+    if (!conn.registerObject(QStringLiteral("/StatusNotifierItem"), bridge,
+                               QDBusConnection::ExportAdaptors | QDBusConnection::ExportAllSlots
+                                   | QDBusConnection::ExportAllInvokables | QDBusConnection::ExportAllSignals)) {
+        logLine(QStringLiteral("  SNI registerObject failed for %1").arg(service));
+        conn.unregisterService(service);
+        delete bridge;
+        return nullptr;
+    }
+
+    // Tell the plasma StatusNotifierWatcher about the item (it does not
+    // auto-discover services; the SNI spec has the app register itself).
+    QDBusMessage reg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.StatusNotifierWatcher"),
+                                                      QStringLiteral("/StatusNotifierWatcher"),
+                                                      QStringLiteral("org.kde.StatusNotifierWatcher"),
+                                                      QStringLiteral("RegisterStatusNotifierItem"));
+    reg << service;
+    conn.send(reg);
+
+    m_bridges.insert(key, bridge);
+    logLine(QStringLiteral("  SNI registered: %1 (key=0x%2)").arg(service).arg(key, 0, 16));
+    return bridge;
+}
+
 void WindowsTrayHost::logIcons()
 {
+    // Opportunistic cleanup: apps that died without NIM_DELETE (or whose
+    // DELETE key drifted away) leave stale bridges + SNI services behind.
+    // Drop entries whose callback window no longer exists.
+    for (auto it = m_icons.begin(); it != m_icons.end();) {
+        if (it.value().hwnd && !IsWindow(it.value().hwnd)) {
+            logLine(QStringLiteral("  cleanup dead icon key=0x%1 hwnd=0x%2").arg(it.key(), 0, 16).arg(reinterpret_cast<quintptr>(it.value().hwnd), 0, 16));
+            unregisterBridge(it.key());
+            it = m_icons.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
     logLine(QStringLiteral("--- icon table (%1 entries) ---").arg(m_icons.size()));
     for (auto it = m_icons.constBegin(); it != m_icons.constEnd(); ++it) {
         const IconEntry &e = it.value();

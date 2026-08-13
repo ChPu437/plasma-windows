@@ -9,6 +9,8 @@
 #include <QObject>
 #include <QTimer>
 
+#include <QDBusConnection>
+
 #include <windows.h>
 
 // Windows notification-area host: registers the Shell_TrayWnd receiver
@@ -46,12 +48,17 @@ private:
         UINT callbackMessage = 0;
         UINT version = 0;
         bool hidden = false;
+        class Snibridge *bridge = nullptr;
     };
 
     void handleCopyData(WPARAM fromWnd, const COPYDATASTRUCT *cds);
     void handleTrayMessage(UINT message, const void *nid);
     void handleNotifyRect(const void *data, DWORD cbData);
     void logIcons();
+
+    class Snibridge *registerBridge(quint64 key, const IconEntry &e);
+    void unregisterBridge(quint64 key);
+    void updateBridgeFromEntry(class Snibridge *bridge, const IconEntry &e);
 
     static LRESULT CALLBACK trayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
@@ -61,4 +68,6 @@ private:
     QTimer m_zOrderTimer;
     QHash<quint64, IconEntry> m_icons;    // key: (quint64(hwnd) << 32) | uID
     QHash<QByteArray, quint64> m_guidMap; // GUID bytes -> primary key
+    QHash<quint64, class Snibridge *> m_bridges;
+    quint64 m_nextBridgeId = 1;
 };

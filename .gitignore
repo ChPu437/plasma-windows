@@ -12,6 +12,9 @@ research/
 *.moc
 _*_out/
 
+# session logs / trayhost build output
+tmp/
+
 # tray spike build artifacts
 src/trayhost/spike/*.exe
 src/trayhost/spike/*.log
