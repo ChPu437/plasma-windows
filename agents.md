@@ -525,3 +525,11 @@ Rules:
 5. Never build `work\build` trees with a long cwd: paths exceed MAX_PATH
    and cl.exe fails with a misleading `C1083 Invalid argument`. Drive
    ninja from the Craft short path (`D:\_\<hash>\build`).
+
+6. Never edit KConfig files with PowerShell `Set-Content -Encoding UTF8`: it
+   writes a UTF-8 BOM which KConfig mis-parses (the first section name gets a
+   garbage prefix, keys fall into the default section and the file is rewritten
+   with bare keys at the top - this broke edit mode / drag-drop). Edit via
+   python (`io.open(..., encoding='utf-8')`) or write without BOM
+   (`New-Object System.Text.UTF8Encoding(False)`), and stop plasmashell
+   before touching its config.
