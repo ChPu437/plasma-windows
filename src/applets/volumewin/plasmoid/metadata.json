@@ -8,11 +8,9 @@
             }
         ],
         "Category": "System Information",
-        "Description": "Control the system master volume (Windows native)",
-        "Description[zh_CN]": "控制系统主音量（Windows 原生）",
-        "EnabledByDefault": true,
+        "Description": "Volume (Windows)",
         "Icon": "audio-volume-high",
-        "Id": "volumewin",
+        "Id": "org.kde.plasma.volumewin",
         "License": "LGPL-2.1-or-later",
         "Name": "Volume (Windows)",
         "Name[zh_CN]": "音量（Windows）",
@@ -23,8 +21,5 @@
     },
     "X-KDE-ParentApp": "org.kde.plasma.desktop",
     "X-Plasma-API-Minimum-Version": "6.0",
-    "X-Plasma-Provides": [
-        "org.kde.plasma.volume"
-    ],
     "MainScript": "ui/main.qml"
 }

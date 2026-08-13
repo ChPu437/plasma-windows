@@ -8,11 +8,9 @@
             }
         ],
         "Category": "System Information",
-        "Description": "Show and switch the input method (Windows native)",
-        "Description[zh_CN]": "显示并切换输入法（Windows 原生）",
-        "EnabledByDefault": true,
+        "Description": "Input Method",
         "Icon": "input-keyboard",
-        "Id": "imewin",
+        "Id": "org.kde.plasma.imewin",
         "License": "LGPL-2.1-or-later",
         "Name": "Input Method",
         "Name[zh_CN]": "输入法",
@@ -23,8 +21,5 @@
     },
     "X-KDE-ParentApp": "org.kde.plasma.desktop",
     "X-Plasma-API-Minimum-Version": "6.0",
-    "X-Plasma-Provides": [
-        "org.kde.plasma.ime"
-    ],
     "MainScript": "ui/main.qml"
 }
