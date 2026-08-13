@@ -1,4 +1,4 @@
-﻿diff --git a/src/plasmaquick/dialog.h b/src/plasmaquick/dialog.h
+diff --git a/src/plasmaquick/dialog.h b/src/plasmaquick/dialog.h
 index a671cd9..f16ce37 100644
 --- a/src/plasmaquick/dialog.h
 +++ b/src/plasmaquick/dialog.h

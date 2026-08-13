@@ -1,4 +1,4 @@
-﻿diff --git a/src/declarativeimports/core/windowthumbnail.cpp b/src/declarativeimports/core/windowthumbnail.cpp
+diff --git a/src/declarativeimports/core/windowthumbnail.cpp b/src/declarativeimports/core/windowthumbnail.cpp
 index 6a54fd6..4779e98 100644
 --- a/src/declarativeimports/core/windowthumbnail.cpp
 +++ b/src/declarativeimports/core/windowthumbnail.cpp

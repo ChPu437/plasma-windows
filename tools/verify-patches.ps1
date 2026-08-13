@@ -48,6 +48,9 @@ foreach ($patchFile in Get-ChildItem $PatchesDir -Recurse -Filter "*.patch") {
     $total++
     $rel = $patchFile.FullName.Substring((Resolve-Path $PatchesDir).Path.Length + 1)
     $bytes = [System.IO.File]::ReadAllBytes($patchFile.FullName)
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        Fail "$rel : file starts with a UTF-8 BOM - strip it"
+    }
     $crlf = 0
     for ($i = 1; $i -lt $bytes.Length; $i++) { if ($bytes[$i] -eq 0x0A -and $bytes[$i-1] -eq 0x0D) { $crlf++ } }
     if ($crlf -gt 0) { Fail "$rel : CRLF line endings ($crlf lines) - use LF" }

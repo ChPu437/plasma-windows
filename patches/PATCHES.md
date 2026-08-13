@@ -148,11 +148,11 @@ Applied via Craft recipe `patchToApply["6.7.4"]` (blueprint
 ## kauth (6.28.0)
 
 * `0001-windows-build-fixes.patch` - compile fixes for the Windows
-  backend (`QMetaTypeModuleHelper` guarded, missing includes).
+  backend (`QMetaTypeModuleHelper` guarded, missing includes) plus
+  `find_package(Qt6DBus)` for the DBus backend (as
+  `qt_add_dbus_interface` requires).
 * `0002-qmetatype-gui-helper-qt610.patch` - `QMetaTypeModuleHelper`
   was removed in Qt 6.10; use plain `QMetaType` on Qt >= 6.10.
-* `0001-dbus-backend-find-qt6dbus.patch` - find Qt6DBus for the DBus
-  backend (as `qt_add_dbus_interface` requires).
   Applied via Craft recipe `patchToApply["6.28.0"]`.
 
 ## krunner (6.28.0)
@@ -267,6 +267,13 @@ taskbar work of M3.6-M3.7:
   fails to map Windows models - data() reads empty).
 * `shell/CMakeLists.txt`, `libtaskmanager/CMakeLists.txt`: link
   KF6::IconThemes / dwmapi; add the Windows model sources.
+
+2026-08-13 hygiene pass (review-driven): dropped the encoding-damaged
+first hunk of `shell/main.cpp` (a UTF-8 BOM had sneaked into the source
+line `/*`, producing a mojibake-only change; the BOM was removed from
+the work tree too), and re-synced the `windowswindowtasksmodel.cpp`
+hunk line count (457 -> 456 after the PLASMA-DEBUG removal). Reverse
+dry-run against the work tree now passes for the whole patch.
 
 ## kwindowsystem (6.28.0) - 0001 updated
 

@@ -1,16 +1,7 @@
-﻿diff --git a/shell/main.cpp b/shell/main.cpp
+diff --git a/shell/main.cpp b/shell/main.cpp
 index 5fa1a42..79bd42e 100644
 --- a/shell/main.cpp
 +++ b/shell/main.cpp
-@@ -1,6 +1,6 @@
--/*
-+锘?*
-     SPDX-FileCopyrightText: 2012 Marco Martin <mart@kde.org>
--    SPDX-FileCopyrightText: 2013 Sebastian K眉gler <sebas@kde.org>
-+    SPDX-FileCopyrightText: 2013 Sebastian K鐪塯ler <sebas@kde.org>
-     SPDX-FileCopyrightText: 2015 David Edmundson <davidedmundson@kde.org>
-     SPDX-FileCopyrightText: 2023 Harald Sitter <sitter@kde.org>
- 
 @@ -27,8 +27,10 @@
  #include <QDBusMessage>
  #include <QDebug>
@@ -598,12 +589,12 @@ new file mode 100644
 +    class Private;
 +    Private *const d;
 +};
-
++
 diff --git a/libtaskmanager/windowswindowtasksmodel.cpp b/libtaskmanager/windowswindowtasksmodel.cpp
 new file mode 100644
 --- /dev/null
 +++ b/libtaskmanager/windowswindowtasksmodel.cpp
-@@ -0,0 +1,457 @@
+@@ -0,0 +1,456 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
@@ -1060,4 +1051,3 @@ new file mode 100644
 +{
 +    Q_UNUSED(index)
 +}
-
