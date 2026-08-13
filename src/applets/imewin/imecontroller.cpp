@@ -4,6 +4,7 @@
 */
 #include "imecontroller.h"
 
+#include <QDebug>
 #include <windows.h>
 
 ImeController::ImeController(QObject *parent)
