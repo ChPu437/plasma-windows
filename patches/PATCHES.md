@@ -412,6 +412,43 @@ expose native Windows apps (notepad/calc/...) in kickoff. Applied via
 Craft recipe `patchToApply["6.28.0"]` (blueprint
 `kde/frameworks/tier1/kconfig`).
 
+## Known limitations / accepted trade-offs (2026-08-14, porting review)
+
+* **Tray popup menus do not dismiss on desktop clicks** (plasma-workspace):
+  the desktop keeps `WS_EX_NOACTIVATE` on purpose - making it activatable
+  (or programmatically activating the panel from a desktop click) flashes
+  every window (activation raises the full-screen desktop, HWND_BOTTOM
+  re-assertion pulls it back; any deferred SetForegroundWindow also
+  triggers a DWM animation). Menus dismiss via other windows or the panel.
+* **libplasma `Dialog` re-declares `Q_PROPERTY(bool visible)`** (0003):
+  intentional and correct (QML `visible` bindings go through
+  `Dialog::setVisible` which positions the popup) - upstream-candidate,
+  not a bug; intentionally not guarded so Windows gets the fix.
+* **plasma-workspace `dbustype.h` adds `operator==` unconditionally**
+  (0002): friend functions, no ABI impact; needed for MSVC containers.
+* **kconfig `isAuthorizedDesktopFile` returns true on Windows** (0001):
+  no executable-bit concept; all shipped `.desktop` files are trusted.
+  Risk is low (no .desktop interpreter ecosystem on Windows) but user-
+  writable paths are trusted too.
+* **kiconthemes skips virtual theme names** (`KIconEngine`,
+  `breeze-internal`): symptom-level fix, brittle if the KIconEngine
+  plugin renames; accepted.
+* **kwindowsystem `slideWindow` animation vs libplasma popup positioning**
+  (0003/0004): the animation writes `pos` from a 180ms QPropertyAnimation
+  while popup positioning also writes the final position at show - a
+  re-position during the animation could land stale. Not observed in
+  practice (clock/preview popups); accepted.
+* **kwindowsystem `AlignedTimer` (Windows)** only aligns once at
+  construction (Linux realigns every cycle): clock drift is negligible
+  with VeryCoarseTimer; accepted.
+* **plasmashell log handler** (`plasmaWindowsLogHandler`) opens/appends/
+  closes `%TEMP%\plasmashell-debug.log` per message, no locking: debug
+  only; acceptable.
+* **`SetWinEventHook` never unhooked** (kwindowsystem plugin): process-
+  resident plugin, hook dies with the process; accepted.
+* **kio `CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS`** kept: the inlined `= default`
+  alternative fails (PIMPL, see the kio section above).
+
 ## Runtime data (not source patches)
 
 * **`CraftRoot\bin\data\wallpapers\Next` wallpaper package** (2026-08-13):
