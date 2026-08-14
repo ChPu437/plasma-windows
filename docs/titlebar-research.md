@@ -15,32 +15,27 @@ persistence via window properties, and a `--watch` mode
 notepad (classify A, remove, cross-process restore round-trip) and in
 watch mode.
 
-**2026-08-14 evening (R1.4)**: the overlay bar is now Breeze-styled and
-fully interactive:
+**2026-08-14 evening (R1.4/R1.5)**: the overlay bar is now Breeze-styled and fully interactive:
 
-- owned window of the target (DWM keeps it above the owner, lowers it
-  with the owner on other-window activation - no z-order races, no
-  floating over other apps), click activates the owner (standard title
-  bar behavior, no WS_EX_NOACTIVATE)
-- manual maximize/restore (never SC_MAXIMIZE: the system-owned maximize
-  raised the target over the bar and its restore rect tracked the moved
-  rect, shrinking the window on every maximize cycle); drag of a
-  maximized window restores it anchored to the cursor
-- smooth drag: DeferWindowPos atomic target+bar moves, no re-entrant
-  drag (WM_TIMER path), async event reposition skipped while dragging
-- Breeze light palette (#EFF0F1 bar, #232629 text/glyphs, hairline
-  border), three buttons (minimize / maximize-restore / close) with
-  TrackMouseEvent hover (gray; close hover #E81123 with white glyph)
-- `--watch` spawns a per-window overlay child so whitelisted apps get
-  the full Breeze bar automatically
+- GDI overlay (titlebar.c --overlay): owned window of the target, click
+  activates owner, manual maximize/restore, smooth drag, Breeze light
+  palette + three buttons with hover, --watch spawns per-window overlays
+- **QML title bar (src/titlebar-qml, titlebar-qml.exe --target <hwnd>)**:
+  the KDE-ecosystem equivalent of the KWin Breeze decoration - real
+  Breeze icon theme SVGs (window-minimize/-maximize/-restore/-close),
+  Breeze palette, Qt Quick rendering. C++ TitleBarBridge reuses the
+  proven window-management logic (owned window, drag, manual maximize).
+  Gotchas found: QML Window wrapper does not show (create QQuickWindow
+  from C++), Pixmap-type QQuickImageProvider does not reach the scene
+  graph under the software renderer (use Image type with GUI-thread
+  pre-rendered QImages), Image async loading needs asynchronous:false,
+  content item must track external SetWindowPos resizes.
 
 Drag-stall investigation (2026-08-14): the panel Floating-style
 animation stalled window dragging - fixed by disabling floating in the
 panel config, see windows-port-notes.md section 8.
 
-Still deferred to R2 (VM spikes): a full QML Plasma title bar
-(PlasmaQuick-based), edge-snap without explorer, and the B-detection
-heuristic validation on real apps (open questions 2/5/8/10).
+Still deferred to R2 (VM spikes): a full KDecoration2-based decoration (KWin-bound, see settings-port-plan.md for the boundary) and the B-detection heuristic validation on real apps (open questions 2/5/8/10).
 
 **Known issue (2026-08-14, unfixed)**: the IME candidate window
 (TextInputHost, `Windows.UI.Core.CoreWindow` full-screen, vis=True)
