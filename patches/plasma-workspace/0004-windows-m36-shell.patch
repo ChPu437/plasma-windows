@@ -602,7 +602,7 @@ diff --git a/libtaskmanager/windowswindowtasksmodel.cpp b/libtaskmanager/windows
 new file mode 100644
 --- /dev/null
 +++ b/libtaskmanager/windowswindowtasksmodel.cpp
-@@ -0,0 +1,435 @@
+@@ -0,0 +1,448 @@
 +﻿/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
@@ -775,6 +775,19 @@ new file mode 100644
 +
 +void WindowsWindowTasksModel::Private::setActiveWindow(WId id)
 +{
++    // Clicking the panel activates it (WS_EX_NOACTIVATE is off since 0005
++    // for popup-menu dismissal) - but the panel is not a task, and letting
++    // it become the active window breaks the "click active task to
++    // minimize" logic (the clicked icon never matches activeWindow). The
++    // real Windows taskbar never takes activation either; filter our own
++    // shell windows out of the active-window tracking.
++    if (id != 0) {
++        DWORD pid = 0;
++        GetWindowThreadProcessId(reinterpret_cast<HWND>(id), &pid);
++        if (pid == GetCurrentProcessId()) {
++            return;
++        }
++    }
 +    if (id == activeWindow) {
 +        return;
 +    }
