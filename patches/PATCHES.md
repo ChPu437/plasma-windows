@@ -378,6 +378,14 @@ visible); icon fallback for minimized/invalid windows.
 was never rebuilt from the patched source. Fixed and verified by a
 craft rebuild from the clean tarball.
 
+`0005-windows-thumbnail-cache.patch` (2026-08-14, porting review C2) -
+move `PrintWindow` out of the QSG render thread: `updatePaintNode` runs
+on the render thread and `PrintWindow` synchronously waits for the
+target window to process WM_PRINT - a hung target stalled the whole
+scene graph. The 500ms `refreshThumbnail` timer now captures into a
+cached QImage on the GUI thread; `windowsThumbnailToTexture` only
+consumes the cache (icon fallback when empty).
+
 ## kio (6.28.0) - Dolphin prerequisite
 
 `0001-windows-export-all-symbols.patch` - `CMakeLists.txt` sets

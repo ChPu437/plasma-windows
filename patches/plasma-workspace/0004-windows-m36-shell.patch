@@ -174,22 +174,29 @@ index cdb1e5c..ed30de9 100644
 +    if (!scr) {
 +        return;
 +    }
++    // QScreen::geometry() is in device-independent pixels; SPI_SETWORKAREA
++    // wants physical pixels - scale by the device pixel ratio (on a 150%
++    // display the work area was reserved 1.5x too small without this).
++    const qreal dpr = scr->devicePixelRatio();
 +    const QRect sr = scr->geometry();
-+    RECT wa = {sr.left(), sr.top(), sr.right() + 1, sr.bottom() + 1};
++    RECT wa = {static_cast<LONG>(sr.left() * dpr),
++               static_cast<LONG>(sr.top() * dpr),
++               static_cast<LONG>((sr.right() + 1) * dpr),
++               static_cast<LONG>((sr.bottom() + 1) * dpr)};
 +    if (visible) {
 +        const QRect pr = frameGeometry();
 +        switch (containment() ? containment()->location() : Plasma::Types::Floating) {
 +        case Plasma::Types::LeftEdge:
-+            wa.left = pr.right() + 1;
++            wa.left = static_cast<LONG>((pr.right() + 1) * dpr);
 +            break;
 +        case Plasma::Types::RightEdge:
-+            wa.right = pr.left();
++            wa.right = static_cast<LONG>(pr.left() * dpr);
 +            break;
 +        case Plasma::Types::TopEdge:
-+            wa.top = pr.bottom() + 1;
++            wa.top = static_cast<LONG>((pr.bottom() + 1) * dpr);
 +            break;
 +        case Plasma::Types::BottomEdge:
-+            wa.bottom = pr.top();
++            wa.bottom = static_cast<LONG>(pr.top() * dpr);
 +            break;
 +        default:
 +            break;
@@ -197,6 +204,7 @@ index cdb1e5c..ed30de9 100644
 +    }
 +    SystemParametersInfo(SPI_SETWORKAREA, 0, &wa, SPIF_SENDCHANGE);
 +}
++
 +#endif
 +
  void PanelView::setScreenToFollow(QScreen *screen)

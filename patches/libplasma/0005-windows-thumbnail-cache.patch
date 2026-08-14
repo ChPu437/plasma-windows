@@ -1,0 +1,102 @@
+--- a/src/declarativeimports/core/windowthumbnail.h
++++ b/src/declarativeimports/core/windowthumbnail.h
+@@ -130,7 +130,9 @@
+ #ifdef Q_OS_WIN
+     void windowsThumbnailToTexture(WindowTextureProvider *textureProvider);
+     void refreshThumbnail();
++    QImage captureThumbnail();
+     QTimer *m_refreshTimer = nullptr;
++    QImage m_cachedThumbnail;
+ #endif
+     bool m_xcb = false;
+     bool m_composite = false;
+
+--- a/src/declarativeimports/core/windowthumbnail.cpp
++++ b/src/declarativeimports/core/windowthumbnail.cpp
+@@ -466,43 +466,40 @@
+ #ifdef Q_OS_WIN
+ void WindowThumbnail::refreshThumbnail()
+ {
++    // Recapture on the GUI thread (not in updatePaintNode, which runs on
++    // the QSG render thread): PrintWindow synchronously waits for the
++    // target window to process WM_PRINT, and doing that on the render
++    // thread stalls the whole scene graph when the target hangs.
+     if (isVisible() && isEnabled() && m_winId != 0 && window() && window()->isVisible()) {
++        m_cachedThumbnail = captureThumbnail();
+         update();
+     }
+ }
+ 
+-void WindowThumbnail::windowsThumbnailToTexture(WindowTextureProvider *textureProvider)
++QImage WindowThumbnail::captureThumbnail()
+ {
+     const HWND hwnd = reinterpret_cast<HWND>(static_cast<qulonglong>(m_winId));
+     if (!IsWindow(hwnd) || IsIconic(hwnd)) {
+-        iconToTexture(textureProvider);
+-        setThumbnailAvailable(false);
+-        return;
++        return {};
+     }
+     RECT r = {};
+     GetWindowRect(hwnd, &r);
+     const int w = r.right - r.left;
+     const int h = r.bottom - r.top;
+     if (w <= 0 || h <= 0) {
+-        iconToTexture(textureProvider);
+-        setThumbnailAvailable(false);
+-        return;
++        return {};
+     }
+ 
+     HDC srcDc = GetWindowDC(hwnd);
+     if (!srcDc) {
+-        iconToTexture(textureProvider);
+-        setThumbnailAvailable(false);
+-        return;
++        return {};
+     }
+     HDC memDc = CreateCompatibleDC(srcDc);
+     HBITMAP bmp = CreateCompatibleBitmap(srcDc, w, h);
+     if (!bmp) {
+         DeleteDC(memDc);
+         ReleaseDC(hwnd, srcDc);
+-        iconToTexture(textureProvider);
+-        setThumbnailAvailable(false);
+-        return;
++        return {};
+     }
+     HGDIOBJ oldBmp = SelectObject(memDc, bmp);
+     const BOOL printed = PrintWindow(hwnd, memDc, PW_RENDERFULLCONTENT);
+@@ -523,6 +520,17 @@
+     ReleaseDC(hwnd, srcDc);
+ 
+     if (!printed || lines == 0 || img.isNull()) {
++        return {};
++    }
++    return img;
++}
++
++void WindowThumbnail::windowsThumbnailToTexture(WindowTextureProvider *textureProvider)
++{
++    // Consume the cached capture taken on the GUI thread; never call
++    // PrintWindow from here (QSG render thread).
++    QImage image = m_cachedThumbnail;
++    if (image.isNull()) {
+         iconToTexture(textureProvider);
+         setThumbnailAvailable(false);
+         return;
+@@ -530,10 +538,10 @@
+ 
+     const qreal dpr = window() ? window()->devicePixelRatio() : 1.0;
+     QSize target = boundingRect().size().toSize() * dpr;
+-    if (!target.isEmpty() && target != img.size()) {
+-        img = img.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+-    }
+-    textureProvider->setTexture(window()->createTextureFromImage(img, QQuickWindow::TextureCanUseAtlas));
++    if (!target.isEmpty() && target != image.size()) {
++        image = image.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation);
++    }
++    textureProvider->setTexture(window()->createTextureFromImage(image, QQuickWindow::TextureCanUseAtlas));
+     setThumbnailAvailable(true);
+ }
+ #endif
