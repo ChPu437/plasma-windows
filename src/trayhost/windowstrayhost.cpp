@@ -389,12 +389,12 @@ void WindowsTrayHost::unregisterBridge(quint64 key)
         return;
     }
     // Proper teardown order: unregister the object from its bus connection
-    // FIRST (synchronously removes the adaptors from Qt's dispatch table,
-    // so no in-flight DBus call can reach the bridge), then unregister the
-    // service name (drops it from the StatusNotifierWatcher), then destroy
-    // the bridge, then close the connection on a deferred timer. Destroying
-    // the bridge while the connection still dispatches to it crashed with a
-    // null deref in Qt6Core (0xf2ec2/0xf3097) under DELETE/ADD churn.
+    // FIRST (synchronously removes the adaptors from Qt's dispatch table),
+    // then unregister the service name, then destroy the bridge AFTER the
+    // event queue drained - in-flight DBus calls are queued as
+    // QDBusCallDeliveryEvent and dispatching one to a destroyed adaptor
+    // crashed with a vtable null deref in Qt6Core (0xf2ec2) under
+    // DELETE/ADD churn. Connection close is deferred the same way.
     const QString serviceName = bridge->serviceName();
     const QString bridgeId = bridge->id();
     QDBusConnection conn = bridge->connection();
@@ -402,7 +402,7 @@ void WindowsTrayHost::unregisterBridge(quint64 key)
         conn.unregisterObject(QStringLiteral("/StatusNotifierItem"));
         conn.unregisterService(serviceName);
     }
-    delete bridge;
+    QTimer::singleShot(600, this, [bridge]() { delete bridge; });
     QTimer::singleShot(100, this, [serviceName]() {
         QDBusConnection::disconnectFromBus(serviceName);
     });
