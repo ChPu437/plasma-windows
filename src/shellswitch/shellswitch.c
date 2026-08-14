@@ -23,6 +23,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <strsafe.h>
+#include <tlhelp32.h>
 
 #define WM_TRAYICON (WM_APP + 1)
 #define IDM_SWITCH_PLASMA 1001
@@ -38,6 +39,13 @@ static HICON g_icon = NULL;
 static BOOL g_dryRun = FALSE;
 static WCHAR g_sessionCmd[MAX_PATH * 2] = {0}; /* full path to session-shell.cmd */
 static WCHAR g_currentShell[1024] = {0};        /* registry value */
+static UINT g_taskbarCreatedMsg = 0;
+static NOTIFYICONDATAW g_nid = {0};
+
+static void logMsg(const WCHAR *fmt, ...);
+static void updateTrayTip(void);
+static void addTrayIcon(void);
+static BOOL isPlasmaValue(const WCHAR *value);
 
 static void logMsg(const WCHAR *fmt, ...)
 {
@@ -117,6 +125,61 @@ static void runTaskkill(const WCHAR *imageName)
     }
 }
 
+static BOOL isProcessRunning(const WCHAR *imageName)
+{
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+    PROCESSENTRY32W pe = {0};
+    pe.dwSize = sizeof(pe);
+    BOOL found = FALSE;
+    if (Process32FirstW(snap, &pe)) {
+        do {
+            if (_wcsicmp(pe.szExeFile, imageName) == 0) {
+                found = TRUE;
+                break;
+            }
+        } while (Process32NextW(snap, &pe));
+    }
+    CloseHandle(snap);
+    return found;
+}
+
+/* trayhost watchdog: while a plasma session is up, make sure trayhost
+   (the SNI bridge that puts this icon into the plasma tray) is alive -
+   it crashes under heavy DELETE/ADD churn, taking the tray down. */
+static void ensureTrayHost(void)
+{
+    if (!isProcessRunning(L"plasmashell.exe") || isProcessRunning(L"trayhost.exe")) {
+        return;
+    }
+    if (g_dryRun) {
+        logMsg(L"[dry-run] would restart trayhost.exe\n");
+        return;
+    }
+    WCHAR path[MAX_PATH];
+    if (GetModuleFileNameW(NULL, path, MAX_PATH) == 0) {
+        return;
+    }
+    WCHAR *slash = wcsrchr(path, L'\\');
+    if (slash) {
+        *slash = 0;
+    }
+    WCHAR trayhostPath[MAX_PATH * 2];
+    StringCchPrintfW(trayhostPath, MAX_PATH * 2, L"%s\\trayhost.exe", path);
+    if (GetFileAttributesW(trayhostPath) == INVALID_FILE_ATTRIBUTES) {
+        return;
+    }
+    STARTUPINFOW si = {sizeof(si)};
+    PROCESS_INFORMATION pi = {0};
+    if (CreateProcessW(trayhostPath, NULL, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        logMsg(L"trayhost restarted\n");
+    }
+}
+
 static void killPlasmaSession(void)
 {
     /* Order matters: plasmashell first (session host script exits with
@@ -168,6 +231,8 @@ static void doSwitchToExplorer(void)
     if (writeShellValue(L"explorer.exe")) {
         killPlasmaSession();
         startExplorer();
+        readShellValue(g_currentShell, 1024);
+        updateTrayTip();
     }
 }
 
@@ -185,6 +250,8 @@ static void doSwitchToPlasma(void)
     if (writeShellValue(regValue)) {
         runTaskkill(L"explorer.exe");
         startPlasmaSession();
+        readShellValue(g_currentShell, 1024);
+        updateTrayTip();
     }
 }
 
@@ -211,12 +278,25 @@ static void discoverSessionCmd(void)
 /* tray                                                                */
 /* ------------------------------------------------------------------ */
 
+static void addTrayIcon(void)
+{
+    g_nid.cbSize = sizeof(g_nid);
+    g_nid.hWnd = g_hwnd;
+    g_nid.uID = 1;
+    g_nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_nid.uCallbackMessage = WM_TRAYICON;
+    g_nid.hIcon = g_icon;
+    StringCchPrintfW(g_nid.szTip, 128, L"Shell Switcher - current: %s",
+                     isPlasmaValue(g_currentShell) ? L"Plasma" : (g_currentShell[0] ? L"Explorer" : L"unknown"));
+    Shell_NotifyIconW(NIM_ADD, &g_nid);
+}
+
 static void updateTrayTip(void)
 {
-    NOTIFYICONDATAW nid = {0};
-    nid.cbSize = sizeof(nid);
-    nid.hWnd = g_hwnd;
-    nid.uID = 1;
+    if (!g_hwnd) {
+        return;
+    }
+    NOTIFYICONDATAW nid = g_nid;
     nid.uFlags = NIF_TIP;
     StringCchPrintfW(nid.szTip, 128, L"Shell Switcher - current: %s",
                      isPlasmaValue(g_currentShell) ? L"Plasma" : (g_currentShell[0] ? L"Explorer" : L"unknown"));
@@ -227,13 +307,16 @@ static void showMenu(void)
 {
     HMENU menu = CreatePopupMenu();
     const BOOL plasma = isPlasmaValue(g_currentShell);
+    const BOOL configured = g_currentShell[0] != 0;
     WCHAR current[256];
     StringCchPrintfW(current, 256, L"Current: %s",
-                     plasma ? L"Plasma" : (g_currentShell[0] ? L"Explorer" : L"unknown (not configured)"));
+                     plasma ? L"Plasma" : (configured ? L"Explorer" : L"unknown (not configured)"));
     AppendMenuW(menu, MF_STRING | MF_GRAYED, IDM_CURRENT, current);
     AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
+    /* both entries stay enabled while the shell is unknown, so a broken
+       switch can always be undone */
     AppendMenuW(menu, MF_STRING | (plasma ? MF_GRAYED : 0), IDM_SWITCH_PLASMA, L"Switch to Plasma");
-    AppendMenuW(menu, MF_STRING | (plasma ? 0 : MF_GRAYED), IDM_SWITCH_EXPLORER, L"Switch to Explorer");
+    AppendMenuW(menu, MF_STRING | ((plasma || !configured) ? 0 : MF_GRAYED), IDM_SWITCH_EXPLORER, L"Switch to Explorer");
     AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(menu, MF_STRING, IDM_EXIT, L"Exit");
 
@@ -246,6 +329,12 @@ static void showMenu(void)
 
 static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
+    if (msg == g_taskbarCreatedMsg) {
+        /* tray host restarted (trayhost crash, explorer restart, shell
+           switch): re-register the icon */
+        Shell_NotifyIconW(NIM_ADD, &g_nid);
+        return 0;
+    }
     switch (msg) {
     case WM_TRAYICON:
         if (LOWORD(lp) == WM_RBUTTONUP || LOWORD(lp) == WM_LBUTTONUP) {
@@ -273,7 +362,13 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         nid.hWnd = hwnd;
         nid.uID = 1;
         Shell_NotifyIconW(NIM_DELETE, &nid);
+        KillTimer(hwnd, 1);
         PostQuitMessage(0);
+        break;
+    case WM_TIMER:
+        if (wp == 1) {
+            ensureTrayHost();
+        }
         break;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
@@ -282,17 +377,31 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
     (void)hPrevInstance;
-    (void)lpCmdLine;
     (void)nCmdShow;
     g_dryRun = GetEnvironmentVariableW(L"SWITCH_DRYRUN", NULL, 0) > 0;
+
+    discoverSessionCmd();
+    readShellValue(g_currentShell, 1024);
+
+    /* CLI mode: shellswitch.exe --to explorer|plasma (no tray, exits
+       after switching). Emergency path that works even when the tray
+       host is down. */
+    if (lpCmdLine && (wcsstr(lpCmdLine, L"--to") || wcsstr(lpCmdLine, L"-to"))) {
+        if (wcsstr(lpCmdLine, L"explorer")) {
+            doSwitchToExplorer();
+        } else if (wcsstr(lpCmdLine, L"plasma")) {
+            doSwitchToPlasma();
+        } else {
+            logMsg(L"usage: shellswitch.exe --to explorer|plasma\n");
+            return 2;
+        }
+        return 0;
+    }
 
     /* keep the console window hidden unless running from a console */
     if (GetConsoleWindow()) {
         ShowWindow(GetConsoleWindow(), SW_HIDE);
     }
-
-    discoverSessionCmd();
-    readShellValue(g_currentShell, 1024);
 
     WNDCLASSW wc = {0};
     wc.lpfnWndProc = wndProc;
@@ -305,18 +414,45 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
         return 1;
     }
 
-    g_icon = LoadIconW(NULL, IDI_APPLICATION);
+    g_taskbarCreatedMsg = RegisterWindowMessageW(L"TaskbarCreated");
 
-    NOTIFYICONDATAW nid = {0};
-    nid.cbSize = sizeof(nid);
-    nid.hWnd = g_hwnd;
-    nid.uID = 1;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_TRAYICON;
-    nid.hIcon = g_icon;
-    StringCchPrintfW(nid.szTip, 128, L"Shell Switcher - current: %s",
-                     isPlasmaValue(g_currentShell) ? L"Plasma" : (g_currentShell[0] ? L"Explorer" : L"unknown"));
-    Shell_NotifyIconW(NIM_ADD, &nid);
+    /* A simple two-tone square so the icon is distinguishable and does
+       not rely on a shared system icon that trayhost might choke on. */
+    {
+        static const BYTE andMask[] = {
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        };
+        static const BYTE xorMask[] = {
+            0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+            0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+            0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+            0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+            0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+            0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+            0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+            0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+            0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+            0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+            0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+            0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+            0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+            0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+            0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+            0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF,
+        };
+        g_icon = CreateIcon(hInstance, 32, 32, 1, 1, andMask, xorMask);
+    }
+    if (!g_icon) {
+        g_icon = LoadIconW(NULL, IDI_APPLICATION);
+    }
+
+    addTrayIcon();
+
+    /* watchdog timer: keep trayhost alive while plasma is running */
+    SetTimer(g_hwnd, 1, 5000, NULL);
 
     logMsg(L"Shell Switcher running%s. Current: %s\n",
            g_dryRun ? L" (DRY RUN)" : L"",
