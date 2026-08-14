@@ -13,10 +13,34 @@ of common apps. Sources cloned into `research/` (gitignored).
 persistence via window properties, and a `--watch` mode
 (`EVENT_OBJECT_SHOW` + process whitelist -> auto-decorate). Verified on
 notepad (classify A, remove, cross-process restore round-trip) and in
-watch mode. Still deferred to R2 (VM spikes): the Plasma overlay window
-(section 4.4), drag/resize via HTCAPTION through the overlay, edge-snap
-without explorer, and the B-detection heuristic validation on real apps
-(open questions 2/5/8/10).
+watch mode.
+
+**2026-08-14 evening (R1.4)**: the overlay bar is now Breeze-styled and
+fully interactive:
+
+- owned window of the target (DWM keeps it above the owner, lowers it
+  with the owner on other-window activation - no z-order races, no
+  floating over other apps), click activates the owner (standard title
+  bar behavior, no WS_EX_NOACTIVATE)
+- manual maximize/restore (never SC_MAXIMIZE: the system-owned maximize
+  raised the target over the bar and its restore rect tracked the moved
+  rect, shrinking the window on every maximize cycle); drag of a
+  maximized window restores it anchored to the cursor
+- smooth drag: DeferWindowPos atomic target+bar moves, no re-entrant
+  drag (WM_TIMER path), async event reposition skipped while dragging
+- Breeze light palette (#EFF0F1 bar, #232629 text/glyphs, hairline
+  border), three buttons (minimize / maximize-restore / close) with
+  TrackMouseEvent hover (gray; close hover #E81123 with white glyph)
+- `--watch` spawns a per-window overlay child so whitelisted apps get
+  the full Breeze bar automatically
+
+Drag-stall investigation (2026-08-14): the panel Floating-style
+animation stalled window dragging - fixed by disabling floating in the
+panel config, see windows-port-notes.md section 8.
+
+Still deferred to R2 (VM spikes): a full QML Plasma title bar
+(PlasmaQuick-based), edge-snap without explorer, and the B-detection
+heuristic validation on real apps (open questions 2/5/8/10).
 
 **Known issue (2026-08-14, unfixed)**: the IME candidate window
 (TextInputHost, `Windows.UI.Core.CoreWindow` full-screen, vis=True)

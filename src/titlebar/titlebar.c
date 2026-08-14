@@ -264,6 +264,21 @@ static void handleWindow(HWND hwnd)
         if (t == TAX_A) {
             wprintf(L"decorating %p\n", hwnd);
             removeCaption(hwnd);
+            /* spawn the overlay bar for it (a fresh child per window;
+               the watch process keeps running and must stay interactive
+               for future SHOW events) */
+            WCHAR selfPath[MAX_PATH];
+            if (GetModuleFileNameW(NULL, selfPath, MAX_PATH) > 0) {
+                WCHAR cmd[MAX_PATH * 2];
+                StringCchPrintfW(cmd, MAX_PATH * 2, L"\"%s\" --overlay 0x%llX", selfPath,
+                                 (unsigned long long)(ULONG_PTR)hwnd);
+                STARTUPINFOW si = {sizeof(si)};
+                PROCESS_INFORMATION pi = {0};
+                if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+                    CloseHandle(pi.hThread);
+                    CloseHandle(pi.hProcess);
+                }
+            }
         }
     }
 }
