@@ -316,26 +316,54 @@ static void watchLoop(void)
 #define BTN_W 32
 #define WM_OVERLAY_REPOSITION (WM_APP + 2)
 
+static void overlayLog(const WCHAR *fmt, ...);
+
 typedef struct
 {
     HWND target;
     HWND bar;
     WCHAR title[512];
-    int cx; /* target width */
+    int cx;          /* target width */
+    POINT downPos;   /* cursor at WM_LBUTTONDOWN (drag threshold) */
+    BOOL dragging;
+    BOOL maximized;      /* our manual maximize state */
+    RECT restoreRect;    /* window rect before our maximize */
 } OverlayCtx;
 
 static OverlayCtx g_ov = {0};
 
 static void overlayReposition(void)
 {
+    if (g_ov.dragging) {
+        return; /* the drag loop moves target + bar itself every frame */
+    }
     if (!g_ov.bar || !IsWindow(g_ov.target)) {
         return;
     }
     RECT r;
     GetWindowRect(g_ov.target, &r);
-    /* place the bar right above the target, full target width */
-    SetWindowPos(g_ov.bar, g_ov.target, r.left, r.top - BAR_H, r.right - r.left, BAR_H,
-                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    if (!IsWindowVisible(g_ov.target)) {
+        /* minimized or gone: take the bar along */
+        ShowWindow(g_ov.bar, SW_HIDE);
+        return;
+    }
+    /* the bar sits on top of the target; with our manual maximize the
+       target keeps a BAR_H strip at the screen top, so the bar lands on
+       the screen edge. Clamp so a window against the top edge never
+       pushes the bar off-screen. */
+    int barTop = r.top - BAR_H;
+    if (barTop < 0) {
+        barTop = 0;
+    }
+    /* z-order: the bar is an OWNED window of the target - the system
+       keeps it directly above the owner and lowers it together with the
+       owner when another window is activated. Never raise it manually:
+       a raised bar would float over unrelated foreground windows. */
+    SetWindowPos(g_ov.bar, NULL, r.left, barTop, r.right - r.left, BAR_H,
+                 SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_NOZORDER);
+    overlayLog(L"reposition max=%d fg=%d rect=%d,%d,%d,%d barTop=%d\n",
+               g_ov.maximized, GetForegroundWindow() == g_ov.target,
+               r.left, r.top, r.right, r.bottom, barTop);
 }
 
 static void overlayUpdateTitle(void)
@@ -360,6 +388,88 @@ static void overlayActOn(int x)
             SendMessageW(g_ov.target, WM_SYSCOMMAND, SC_MINIMIZE, 0);
         }
     }
+}
+
+/* manual drag loop (R1.3 4.3 B): the HTCAPTION native trick does not
+   move windows whose caption styles were removed. */
+static void beginManualDrag(HWND bar)
+{
+    if (!IsWindow(g_ov.target)) {
+        return;
+    }
+    /* guard: the modal loop below dispatches queued mouse messages; a
+       WM_MOUSEMOVE seen there must not re-enter this function (the
+       WM_TIMER entry path used to leave dragging=FALSE -> recursion,
+       each queued move nested one more frame -> visible stutter) */
+    g_ov.dragging = TRUE;
+    if (g_ov.maximized) {
+        /* dragging a maximized window first restores it (AltSnap logic);
+           manual restore - SC_RESTORE does nothing since we never sent
+           SC_MAXIMIZE. Anchor the window top to the cursor: keep the
+           cursor's position inside the bar, otherwise the window would
+           restore at its old rect while the cursor is at the screen top
+           (restore offY becomes -84 -> window rides far below the
+           mouse). The bar must resize in the same step - the async
+           event reposition is skipped while dragging. */
+        POINT cur;
+        GetCursorPos(&cur);
+        RECT barR;
+        GetWindowRect(bar, &barR);
+        const int dy = cur.y - barR.top; /* cursor inside the bar */
+        const int w = g_ov.restoreRect.right - g_ov.restoreRect.left;
+        const int h = g_ov.restoreRect.bottom - g_ov.restoreRect.top;
+        const int top = cur.y + (BAR_H - dy);
+        SetWindowPos(g_ov.target, NULL, g_ov.restoreRect.left, top, w, h,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        SetWindowPos(g_ov.bar, NULL, g_ov.restoreRect.left, top - BAR_H, w, BAR_H,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        g_ov.maximized = FALSE;
+    }
+    POINT cursor;
+    GetCursorPos(&cursor);
+    RECT tr;
+    GetWindowRect(g_ov.target, &tr);
+    const int offX = cursor.x - tr.left;
+    const int offY = cursor.y - tr.top;
+
+    SetCapture(bar);
+    for (;;) {
+        if (GetAsyncKeyState(VK_LBUTTON) >= 0) {
+            break;
+        }
+        GetCursorPos(&cursor);
+        if (IsWindow(g_ov.target)) {
+            /* atomic batch: target + bar move in one EndDeferWindowPos.
+               The bar must follow synchronously - the async
+               WINEVENT_OUTOFCONTEXT reposition lags a few frames and
+               reads as stutter on the bar. */
+            HDWP hdwp = BeginDeferWindowPos(2);
+            if (hdwp) {
+                hdwp = DeferWindowPos(hdwp, g_ov.target, NULL, cursor.x - offX, cursor.y - offY,
+                                      0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                if (hdwp) {
+                    DeferWindowPos(hdwp, g_ov.bar, NULL, cursor.x - offX, cursor.y - offY - BAR_H,
+                                   0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                    EndDeferWindowPos(hdwp);
+                }
+            }
+        }
+        MSG msg;
+        while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_LBUTTONUP || msg.message == WM_CAPTURECHANGED) {
+                ReleaseCapture();
+                g_ov.dragging = FALSE;
+                overlayReposition();
+                return;
+            }
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        Sleep(10);
+    }
+    ReleaseCapture();
+    g_ov.dragging = FALSE;
+    overlayReposition();
 }
 
 static LRESULT CALLBACK barWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -414,18 +524,77 @@ static LRESULT CALLBACK barWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             overlayActOn(x);
             return 0;
         }
-        /* drag: forward to the target's modal move loop */
-        if (IsWindow(g_ov.target)) {
-            SendMessageW(g_ov.target, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        GetCursorPos(&g_ov.downPos);
+        g_ov.dragging = FALSE;
+        overlayLog(L"DOWN x=%d\n", x);
+        SetCapture(hwnd);
+        SetTimer(hwnd, 1, 200, NULL);
+        return 0;
+    }
+    case WM_MOUSEMOVE: {
+        if (GetCapture() == hwnd && !g_ov.dragging && IsWindow(g_ov.target)) {
+            POINT pt;
+            GetCursorPos(&pt);
+            if (abs(pt.x - g_ov.downPos.x) > 4 || abs(pt.y - g_ov.downPos.y) > 4) {
+                /* real drag: skip the double-click wait */
+                KillTimer(hwnd, 1);
+                g_ov.dragging = TRUE;
+                overlayLog(L"MOVE -> drag\n");
+                beginManualDrag(hwnd);
+            }
         }
         return 0;
     }
     case WM_LBUTTONDBLCLK: {
-        if (IsWindow(g_ov.target)) {
-            SendMessageW(g_ov.target, WM_NCLBUTTONDBLCLK, HTCAPTION, 0);
+        KillTimer(hwnd, 1);
+        ReleaseCapture();
+        if (!IsWindow(g_ov.target)) {
+            return 0;
         }
+        if (g_ov.maximized) {
+            SetWindowPos(g_ov.target, NULL, g_ov.restoreRect.left, g_ov.restoreRect.top,
+                         g_ov.restoreRect.right - g_ov.restoreRect.left,
+                         g_ov.restoreRect.bottom - g_ov.restoreRect.top,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+            g_ov.maximized = FALSE;
+            overlayLog(L"manual restore\n");
+        } else {
+            GetWindowRect(g_ov.target, &g_ov.restoreRect);
+            MONITORINFO mi = {sizeof(mi)};
+            GetMonitorInfoW(MonitorFromWindow(g_ov.target, MONITOR_DEFAULTTOPRIMARY), &mi);
+            /* manual maximize: work area minus a BAR_H strip at the top
+               for the bar. Deliberately NOT SC_MAXIMIZE - the system
+               would then own the window (raise it over the bar, and its
+               restore rect tracks our moved rect so repeated maximize
+               makes the window shorter every time). */
+            RECT wa = mi.rcWork;
+            SetWindowPos(g_ov.target, NULL, wa.left, wa.top + BAR_H,
+                         wa.right - wa.left, wa.bottom - wa.top - BAR_H,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+            g_ov.maximized = TRUE;
+            overlayLog(L"manual maximize restore=%d,%d,%d,%d\n",
+                       g_ov.restoreRect.left, g_ov.restoreRect.top,
+                       g_ov.restoreRect.right, g_ov.restoreRect.bottom);
+        }
+        overlayReposition();
         return 0;
     }
+    case WM_LBUTTONUP:
+        overlayLog(L"UP\n");
+        KillTimer(hwnd, 1);
+        g_ov.dragging = FALSE;
+        ReleaseCapture();
+        return 0;
+    case WM_TIMER:
+        if (wp == 1) {
+            KillTimer(hwnd, 1);
+            overlayLog(L"TIMER -> drag\n");
+            beginManualDrag(hwnd);
+        }
+        return 0;
+    case WM_CAPTURECHANGED:
+        KillTimer(hwnd, 1);
+        return 0;
     case WM_OVERLAY_REPOSITION:
         overlayReposition();
         overlayUpdateTitle();
@@ -434,9 +603,23 @@ static LRESULT CALLBACK barWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
+static void overlayLog(const WCHAR *fmt, ...)
+{
+    FILE *f = _wfopen(L"C:\\Users\\jing\\AppData\\Local\\Temp\\opencode\\overlay.log", L"a");
+    if (!f) {
+        return;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    vfwprintf(f, fmt, ap);
+    va_end(ap);
+    fclose(f);
+}
+
 static HWND overlayCreate(HWND target)
 {
     WNDCLASSW wc = {0};
+    wc.style = CS_DBLCLKS; /* needed for WM_LBUTTONDBLCLK (maximize) */
     wc.lpfnWndProc = barWndProc;
     wc.hInstance = GetModuleHandleW(NULL);
     wc.lpszClassName = L"PlasmaTitleBarOverlay";
@@ -446,12 +629,18 @@ static HWND overlayCreate(HWND target)
     g_ov.target = target;
     RECT tr;
     GetWindowRect(target, &tr);
+    /* owned window: hwndParent = target. The system keeps an owned
+       window in the z-order directly above its owner and lowers it with
+       the owner on activation of another window - the bar rides with the
+       target instead of floating over other apps. No WS_EX_NOACTIVATE:
+       clicking an owned window activates its owner, i.e. clicking the
+       bar brings the target to the foreground like a real title bar. */
     HWND bar = CreateWindowExW(
-        WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+        WS_EX_TOOLWINDOW,
         wc.lpszClassName, L"",
         WS_POPUP,
         tr.left, tr.top - BAR_H, tr.right - tr.left, BAR_H,
-        NULL, NULL, wc.hInstance, NULL);
+        target, NULL, wc.hInstance, NULL);
     g_ov.bar = bar;
     overlayUpdateTitle();
     overlayReposition();
@@ -468,20 +657,35 @@ static void CALLBACK ovEventProc(HWINEVENTHOOK hHook, DWORD event, HWND hwnd, LO
     (void)idChild;
     (void)dwEventThread;
     (void)dwmsEventTime;
-    if (hwnd == g_ov.target && g_ov.bar) {
-        PostMessageW(g_ov.bar, WM_OVERLAY_REPOSITION, 0, 0);
+    if (hwnd != g_ov.target || !g_ov.bar) {
+        return;
     }
+    if (event == EVENT_SYSTEM_FOREGROUND) {
+        /* Show + reposition while the target owns the foreground. We
+           deliberately do NOT hide on focus loss: clicks land on the bar
+           without activating the target (WS_EX_NOACTIVATE), and hiding
+           there would make the bar vanish on its own interactions (e.g.
+           right after double-click maximize). */
+        if (GetForegroundWindow() == g_ov.target) {
+            ShowWindow(g_ov.bar, SW_SHOWNOACTIVATE);
+        }
+        PostMessageW(g_ov.bar, WM_OVERLAY_REPOSITION, 0, 0);
+        return;
+    }
+    PostMessageW(g_ov.bar, WM_OVERLAY_REPOSITION, 0, 0);
 }
 
 static void overlayWatch(void)
 {
-    /* track the target: reposition on move/show/hide/minimize, update
-       the title on rename, quit when the target dies */
+    /* track the target: reposition on move/show/foreground/minimize,
+       update the title on rename, quit when the target dies */
     SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE, NULL, ovEventProc,
                     0, 0, WINEVENT_OUTOFCONTEXT);
     SetWinEventHook(EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE, NULL, ovEventProc,
                     0, 0, WINEVENT_OUTOFCONTEXT);
     SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, NULL, ovEventProc,
+                    0, 0, WINEVENT_OUTOFCONTEXT);
+    SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, NULL, ovEventProc,
                     0, 0, WINEVENT_OUTOFCONTEXT);
     SetWinEventHook(EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MINIMIZEEND, NULL, ovEventProc,
                     0, 0, WINEVENT_OUTOFCONTEXT);
