@@ -1,7 +1,6 @@
-a/src/CMakeLists.txt
-index af2e87c..d810a64 100644
-a/src/CMakeLists.txt
-b/src/CMakeLists.txt
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
 @@ -80,6 +80,14 @@ if (KWINDOWSYSTEM_WAYLAND)
      target_sources(KF6WindowSystem PRIVATE kwaylandextras.cpp)
  endif()
@@ -42,10 +41,9 @@ b/src/CMakeLists.txt
      DESTINATION
          ${KDE_INSTALL_INCLUDEDIR_KF}/KWindowSystem/private
      COMPONENT
-a/src/kwindowinfo.cpp
-index fb89fc3..73040b2 100644
-a/src/kwindowinfo.cpp
-b/src/kwindowinfo.cpp
+diff --git a/src/kwindowinfo.cpp b/src/kwindowinfo.cpp
+--- a/src/kwindowinfo.cpp
++++ b/src/kwindowinfo.cpp
 @@ -7,11 +7,15 @@
  #include "kwindowinfo.h"
  #include "kwindowsystem.h"
@@ -842,10 +840,9 @@ b/src/kwindowinfo.cpp
 +    return d->m_pid;
 +#endif
  }
-a/src/kwindowsystem.cpp
-index cbc4bb8..bccf8de 100644
-a/src/kwindowsystem.cpp
-b/src/kwindowsystem.cpp
+diff --git a/src/kwindowsystem.cpp b/src/kwindowsystem.cpp
+--- a/src/kwindowsystem.cpp
++++ b/src/kwindowsystem.cpp
 @@ -144,6 +144,9 @@ static inline KWindowSystem::Platform initPlatform()
      if (platformName.startsWith(QLatin1String("wayland"), Qt::CaseInsensitive)) {
          return KWindowSystem::Platform::Wayland;
@@ -868,10 +865,9 @@ b/src/kwindowsystem.cpp
  void KWindowSystem::updateStartupId(QWindow *window)
  {
      // clang-format off
-a/src/kwindowsystem.h
-index fcc5021..43fe5e4 100644
-a/src/kwindowsystem.h
-b/src/kwindowsystem.h
+diff --git a/src/kwindowsystem.h b/src/kwindowsystem.h
+--- a/src/kwindowsystem.h
++++ b/src/kwindowsystem.h
 @@ -165,6 +165,7 @@ public:
          Unknown,
          X11,
@@ -894,10 +890,9 @@ b/src/kwindowsystem.h
      /*!
       * Sets the \a token that will be used when activateWindow is called next
       *
-a/src/kwindowsystemplugininterface.cpp
-index 39aeaf2..6d63af3 100644
-a/src/kwindowsystemplugininterface.cpp
-b/src/kwindowsystemplugininterface.cpp
+diff --git a/src/kwindowsystemplugininterface.cpp b/src/kwindowsystemplugininterface.cpp
+--- a/src/kwindowsystemplugininterface.cpp
++++ b/src/kwindowsystemplugininterface.cpp
 @@ -35,4 +35,9 @@ KWindowShadowTilePrivate *KWindowSystemPluginInterface::createWindowShadowTile()
      return nullptr;
  }
@@ -908,10 +903,9 @@ b/src/kwindowsystemplugininterface.cpp
 +}
 +
  #include "moc_kwindowsystemplugininterface_p.cpp"
-a/src/kwindowsystemplugininterface_p.h
-index c2d583f..899d4e4 100644
-a/src/kwindowsystemplugininterface_p.h
-b/src/kwindowsystemplugininterface_p.h
+diff --git a/src/kwindowsystemplugininterface_p.h b/src/kwindowsystemplugininterface_p.h
+--- a/src/kwindowsystemplugininterface_p.h
++++ b/src/kwindowsystemplugininterface_p.h
 @@ -14,6 +14,7 @@ class KWindowEffectsPrivate;
  class KWindowShadowPrivate;
  class KWindowShadowTilePrivate;
@@ -928,11 +922,11 @@ b/src/kwindowsystemplugininterface_p.h
  };
  
  Q_DECLARE_INTERFACE(KWindowSystemPluginInterface, KWindowSystemPluginInterface_iid)
-a/src/kwindowsystemwindows.cpp
+diff --git a/src/kwindowsystemwindows.cpp b/src/kwindowsystemwindows.cpp
 new file mode 100644
 index 0000000..375338d
 --- /dev/null
-b/src/kwindowsystemwindows.cpp
++++ b/src/kwindowsystemwindows.cpp
 @@ -0,0 +1,83 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1017,11 +1011,11 @@ b/src/kwindowsystemwindows.cpp
 +    }
 +    return {};
 +}
-a/src/kwindowsystemwindows.h
+diff --git a/src/kwindowsystemwindows.h b/src/kwindowsystemwindows.h
 new file mode 100644
 index 0000000..58386f8
 --- /dev/null
-b/src/kwindowsystemwindows.h
++++ b/src/kwindowsystemwindows.h
 @@ -0,0 +1,49 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1072,11 +1066,11 @@ b/src/kwindowsystemwindows.h
 +};
 +
 +#endif
-a/src/kwindowsystemwindows_p.h
+diff --git a/src/kwindowsystemwindows_p.h b/src/kwindowsystemwindows_p.h
 new file mode 100644
 index 0000000..ab26a85
 --- /dev/null
-b/src/kwindowsystemwindows_p.h
++++ b/src/kwindowsystemwindows_p.h
 @@ -0,0 +1,41 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1119,10 +1113,9 @@ b/src/kwindowsystemwindows_p.h
 +};
 +
 +#endif
-a/src/platforms/CMakeLists.txt
-index 75b2809..e65b9ca 100644
-a/src/platforms/CMakeLists.txt
-b/src/platforms/CMakeLists.txt
+diff --git a/src/platforms/CMakeLists.txt b/src/platforms/CMakeLists.txt
+--- a/src/platforms/CMakeLists.txt
++++ b/src/platforms/CMakeLists.txt
 @@ -4,3 +4,6 @@ endif()
  if(KWINDOWSYSTEM_WAYLAND)
      add_subdirectory(wayland)
@@ -1130,11 +1123,11 @@ b/src/platforms/CMakeLists.txt
 +if(KWINDOWSYSTEM_WINDOWS)
 +    add_subdirectory(windows)
 +endif()
-a/src/platforms/windows/CMakeLists.txt
+diff --git a/src/platforms/windows/CMakeLists.txt b/src/platforms/windows/CMakeLists.txt
 new file mode 100644
 index 0000000..54a36ed
 --- /dev/null
-b/src/platforms/windows/CMakeLists.txt
++++ b/src/platforms/windows/CMakeLists.txt
 @@ -0,0 +1,18 @@
 +add_library(KF6WindowSystemWindowsPlugin MODULE)
 +
@@ -1154,11 +1147,11 @@ b/src/platforms/windows/CMakeLists.txt
 +)
 +
 +install(TARGETS KF6WindowSystemWindowsPlugin DESTINATION ${KDE_INSTALL_PLUGINDIR}/kf6/org.kde.kwindowsystem.platforms)
-a/src/platforms/windows/plugin.cpp
+diff --git a/src/platforms/windows/plugin.cpp b/src/platforms/windows/plugin.cpp
 new file mode 100644
 index 0000000..17aa36e
 --- /dev/null
-b/src/platforms/windows/plugin.cpp
++++ b/src/platforms/windows/plugin.cpp
 @@ -0,0 +1,35 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1195,11 +1188,11 @@ b/src/platforms/windows/plugin.cpp
 +}
 +
 +#include "moc_plugin.cpp"
-a/src/platforms/windows/plugin.h
+diff --git a/src/platforms/windows/plugin.h b/src/platforms/windows/plugin.h
 new file mode 100644
 index 0000000..e84ca4a
 --- /dev/null
-b/src/platforms/windows/plugin.h
++++ b/src/platforms/windows/plugin.h
 @@ -0,0 +1,25 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1226,11 +1219,11 @@ b/src/platforms/windows/plugin.h
 +};
 +
 +#endif
-a/src/platforms/windows/windoweffects.cpp
+diff --git a/src/platforms/windows/windoweffects.cpp b/src/platforms/windows/windoweffects.cpp
 new file mode 100644
 index 0000000..48c22f0
 --- /dev/null
-b/src/platforms/windows/windoweffects.cpp
++++ b/src/platforms/windows/windoweffects.cpp
 @@ -0,0 +1,162 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1394,11 +1387,11 @@ b/src/platforms/windows/windoweffects.cpp
 +    // approximated with blur-behind (see isEffectAvailable)
 +    setAccent(reinterpret_cast<HWND>(window->winId()), enable, AccentEnableBlurbehind);
 +}
-a/src/platforms/windows/windoweffects.h
+diff --git a/src/platforms/windows/windoweffects.h b/src/platforms/windows/windoweffects.h
 new file mode 100644
 index 0000000..18e2bb8
 --- /dev/null
-b/src/platforms/windows/windoweffects.h
++++ b/src/platforms/windows/windoweffects.h
 @@ -0,0 +1,28 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1428,20 +1421,20 @@ b/src/platforms/windows/windoweffects.h
 +};
 +
 +#endif
-a/src/platforms/windows/windows.json
+diff --git a/src/platforms/windows/windows.json b/src/platforms/windows/windows.json
 new file mode 100644
 index 0000000..34bbe5c
 --- /dev/null
-b/src/platforms/windows/windows.json
++++ b/src/platforms/windows/windows.json
 @@ -0,0 +1,3 @@
 +{
 +    "platforms": ["windows"]
 +}
-a/src/platforms/windows/windowslist.cpp
+diff --git a/src/platforms/windows/windowslist.cpp b/src/platforms/windows/windowslist.cpp
 new file mode 100644
 index 0000000..1c8b49f
 --- /dev/null
-b/src/platforms/windows/windowslist.cpp
++++ b/src/platforms/windows/windowslist.cpp
 @@ -0,0 +1,208 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1651,11 +1644,11 @@ b/src/platforms/windows/windowslist.cpp
 +    }
 +}
 +}
-a/src/platforms/windows/windowslist.h
+diff --git a/src/platforms/windows/windowslist.h b/src/platforms/windows/windowslist.h
 new file mode 100644
 index 0000000..176afd9
 --- /dev/null
-b/src/platforms/windows/windowslist.h
++++ b/src/platforms/windows/windowslist.h
 @@ -0,0 +1,42 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1699,11 +1692,11 @@ b/src/platforms/windows/windowslist.h
 +}
 +
 +#endif
-a/src/platforms/windows/windowsystem.cpp
+diff --git a/src/platforms/windows/windowsystem.cpp b/src/platforms/windows/windowsystem.cpp
 new file mode 100644
 index 0000000..d0949b4
 --- /dev/null
-b/src/platforms/windows/windowsystem.cpp
++++ b/src/platforms/windows/windowsystem.cpp
 @@ -0,0 +1,139 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1844,11 +1837,11 @@ b/src/platforms/windows/windowsystem.cpp
 +}
 +
 +#include "moc_windowsystem.cpp"
-a/src/platforms/windows/windowsystem.h
+diff --git a/src/platforms/windows/windowsystem.h b/src/platforms/windows/windowsystem.h
 new file mode 100644
 index 0000000..77c6f2c
 --- /dev/null
-b/src/platforms/windows/windowsystem.h
++++ b/src/platforms/windows/windowsystem.h
 @@ -0,0 +1,40 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
@@ -1890,10 +1883,9 @@ b/src/platforms/windows/windowsystem.h
 +};
 +
 +#endif
-a/src/pluginwrapper.cpp
-index 87e7cb8..a7fbf1b 100644
-a/src/pluginwrapper.cpp
-b/src/pluginwrapper.cpp
+diff --git a/src/pluginwrapper.cpp b/src/pluginwrapper.cpp
+--- a/src/pluginwrapper.cpp
++++ b/src/pluginwrapper.cpp
 @@ -144,6 +144,14 @@ KWindowShadowPrivate *KWindowSystemPluginWrapper::createWindowShadow() const
      return p;
  }
@@ -1909,10 +1901,9 @@ b/src/pluginwrapper.cpp
  KWindowShadowTilePrivate *KWindowSystemPluginWrapper::createWindowShadowTile() const
  {
      KWindowShadowTilePrivate *p = nullptr;
-a/src/pluginwrapper_p.h
-index ce365ab..289ed47 100644
-a/src/pluginwrapper_p.h
-b/src/pluginwrapper_p.h
+diff --git a/src/pluginwrapper_p.h b/src/pluginwrapper_p.h
+--- a/src/pluginwrapper_p.h
++++ b/src/pluginwrapper_p.h
 @@ -14,6 +14,7 @@ class KWindowShadowPrivate;
  class KWindowShadowTilePrivate;
  class KWindowSystemPluginInterface;
@@ -1929,4 +1920,3 @@ b/src/pluginwrapper_p.h
  
  private:
      std::unique_ptr<KWindowSystemPluginInterface> m_plugin;
-
