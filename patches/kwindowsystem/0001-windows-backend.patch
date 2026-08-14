@@ -1,3 +1,16 @@
+﻿diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -51,6 +51,9 @@
+     find_package(Qt6Qml ${REQUIRED_QT_VERSION} CONFIG REQUIRED)
+ endif()
+ 
++# Windows backend (WindowsPlugin) + KWindowSystemWindows/KWindowInfo:
++# craft does not pass -DKWINDOWSYSTEM_WINDOWS, default it ON on WIN32.
++option(KWINDOWSYSTEM_WINDOWS "Build Windows support" ${WIN32})
+ option(KWINDOWSYSTEM_X11 "Build X11 support" ON)
+ option(KWINDOWSYSTEM_WAYLAND "Build Wayland support" ON)
+
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
