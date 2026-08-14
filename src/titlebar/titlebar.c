@@ -332,6 +332,12 @@ typedef struct
 
 static OverlayCtx g_ov = {0};
 
+/* drag diagnostics (see beginManualDrag): win-event hooks fire for
+   every window - non-target LOCATIONCHANGE frames are the panel
+   animation; WM_SETTINGCHANGE broadcast volume lands on the bar. */
+static volatile LONG g_diagOtherLoc = 0;
+static volatile LONG g_diagSettingChg = 0;
+
 static void overlayReposition(void)
 {
     if (g_ov.dragging) {
@@ -433,7 +439,21 @@ static void beginManualDrag(HWND bar)
     const int offY = cursor.y - tr.top;
 
     SetCapture(bar);
+    /* diagnostics: per-iteration timing + system event sampling. The
+       panel animation is suspected of stalling the drag loop; the
+       sample line reports average/max iteration cost, queued message
+       volume and win-event rates (non-target LOCATIONCHANGE = panel
+       animation frames) every 250 ms. */
+    LARGE_INTEGER diagFreq;
+    QueryPerformanceFrequency(&diagFreq);
+    ULONGLONG diagLast = GetTickCount64();
+    ULONGLONG diagSumPeriodUs = 0, diagMaxPeriodUs = 0, diagSumMoveUs = 0;
+    ULONG diagIters = 0, diagMsgs = 0;
+    InterlockedExchange((volatile LONG *)&g_diagOtherLoc, 0);
+    InterlockedExchange((volatile LONG *)&g_diagSettingChg, 0);
     for (;;) {
+        LARGE_INTEGER t0, t1, t2;
+        QueryPerformanceCounter(&t0);
         if (GetAsyncKeyState(VK_LBUTTON) >= 0) {
             break;
         }
@@ -454,8 +474,10 @@ static void beginManualDrag(HWND bar)
                 }
             }
         }
+        QueryPerformanceCounter(&t1);
         MSG msg;
         while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+            diagMsgs++;
             if (msg.message == WM_LBUTTONUP || msg.message == WM_CAPTURECHANGED) {
                 ReleaseCapture();
                 g_ov.dragging = FALSE;
@@ -466,6 +488,35 @@ static void beginManualDrag(HWND bar)
             DispatchMessageW(&msg);
         }
         Sleep(10);
+        QueryPerformanceCounter(&t2);
+        {
+            /* full loop period (move + messages + sleep): a long period
+               means the mouse-tracking updates are rate-limited even
+               though the SetWindowPos call itself is fast */
+            const ULONGLONG periodUs = (t2.QuadPart - t0.QuadPart) * 1000000 / diagFreq.QuadPart;
+            const ULONGLONG moveUs = (t1.QuadPart - t0.QuadPart) * 1000000 / diagFreq.QuadPart;
+            diagSumPeriodUs += periodUs;
+            diagSumMoveUs += moveUs;
+            if (periodUs > diagMaxPeriodUs) {
+                diagMaxPeriodUs = periodUs;
+            }
+            diagIters++;
+        }
+        const ULONGLONG diagNow = GetTickCount64();
+        if (diagNow - diagLast >= 250) {
+            const ULONG loc = InterlockedExchange((volatile LONG *)&g_diagOtherLoc, 0);
+            const ULONG set = InterlockedExchange((volatile LONG *)&g_diagSettingChg, 0);
+            overlayLog(L"drag sample: period avg=%llu max=%llu move avg=%llu iters=%lu msgs=%lu locEvt=%lu setChg=%lu\n",
+                       diagSumPeriodUs / (diagIters ? diagIters : 1), diagMaxPeriodUs,
+                       diagSumMoveUs / (diagIters ? diagIters : 1),
+                       diagIters, diagMsgs, loc, set);
+            diagLast = diagNow;
+            diagSumPeriodUs = 0;
+            diagMaxPeriodUs = 0;
+            diagSumMoveUs = 0;
+            diagIters = 0;
+            diagMsgs = 0;
+        }
     }
     ReleaseCapture();
     g_ov.dragging = FALSE;
@@ -599,6 +650,11 @@ static LRESULT CALLBACK barWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         overlayReposition();
         overlayUpdateTitle();
         return 0;
+    case WM_SETTINGCHANGE:
+        /* SPIF_SENDCHANGE broadcast (panel work-area updates) - count
+           while dragging to correlate stalls with broadcast storms */
+        InterlockedIncrement(&g_diagSettingChg);
+        break;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
@@ -658,6 +714,11 @@ static void CALLBACK ovEventProc(HWINEVENTHOOK hHook, DWORD event, HWND hwnd, LO
     (void)dwEventThread;
     (void)dwmsEventTime;
     if (hwnd != g_ov.target || !g_ov.bar) {
+        if (event == EVENT_OBJECT_LOCATIONCHANGE) {
+            /* other windows moving (e.g. the panel animation) - sampled
+               per 250 ms by the drag loop */
+            InterlockedIncrement(&g_diagOtherLoc);
+        }
         return;
     }
     if (event == EVENT_SYSTEM_FOREGROUND) {

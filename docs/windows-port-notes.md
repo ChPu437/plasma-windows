@@ -254,6 +254,17 @@ KDE semantics implemented with native Win32 z-order:
   from a raised desktop was also reported.
 - **Panel on top**: PanelView already carries `Qt::WindowStaysOnTopHint`
   (Windows branch).
+- **Panel must NOT be Floating (drag performance)**: the default panel
+  style is Floating + Adaptive opacity. On X11+NVIDIA Plasma detects
+  this and warns ("poor window drag and resize performance", upstream
+  `panelview.cpp`, BUG 475468); on Windows `isUnsupportedEnvironment()`
+  is always false (X11-only check), so the bad combination is silently
+  active. The floatingness animation (panel snapping to the screen edge
+  when a window maximizes/touches it) runs per-frame
+  `positionAndResizePanel()` and stalls window dragging until the
+  animation finishes (~40% plasmashell CPU during the animation).
+  Fix: set `floating=false` (+ optionally `panelOpacity=1`) in
+  `[Containments][2]` of `%LOCALAPPDATA%\plasma-org.kde.plasma.desktop-appletsrc`.
 - **Panel work area**: `PanelView::updateWorkArea()` calls
   `SystemParametersInfo(SPI_SETWORKAREA)` so maximized windows stop at
   the panel edge like the Windows taskbar (show/hide/move/resize
