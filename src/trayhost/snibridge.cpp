@@ -103,12 +103,14 @@ void Snibridge::setIcon(HICON hIcon)
 {
     m_icon.clear();
     if (!hIcon) {
+        logLine(QStringLiteral("  setIcon: null hIcon"));
         Q_EMIT iconChanged();
         return;
     }
 
     HICON copy = CopyIcon(hIcon);
     if (!copy) {
+        logLine(QStringLiteral("  setIcon: CopyIcon failed err=%1").arg(GetLastError()));
         return;
     }
 
@@ -118,6 +120,7 @@ void Snibridge::setIcon(HICON hIcon)
         GetObjectW(info.hbmColor, sizeof(bmp), &bmp);
         const int w = bmp.bmWidth;
         const int h = bmp.bmHeight;
+        logLine(QStringLiteral("  setIcon: hIcon=%1 size=%2x%3").arg(reinterpret_cast<quintptr>(hIcon), 0, 16).arg(w).arg(h));
         if (w > 0 && h > 0) {
             BITMAPINFO bmi{};
             bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
