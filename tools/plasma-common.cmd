@@ -69,9 +69,10 @@ rem ---------------------------------------------------------------------------
 :pc_write_menu
 call :pc_resolve_root
 if not exist "%LOCALAPPDATA%\menus" mkdir "%LOCALAPPDATA%\menus"
+rem No DOCTYPE line: cmd eats the '!' of "<!DOCTYPE" under delayed
+rem expansion, producing "<DOCTYPE ..." which kf.service.sycoca rejects
+rem ("Expected '=', got '[a-zA-Z]'" at line 1). The DTD is not needed.
 (
-    echo ^<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
-    echo   "http://www.freedesktop.org/standards/menu-spec/menu-1.0.dtd"^>
     echo ^<Menu^>
     echo   ^<Name^>Applications^</Name^>
     echo   ^<Directory^>applications.directory^</Directory^>
