@@ -95,6 +95,7 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, DBusToolTipStruct &tip
 Snibridge::Snibridge(QObject *parent)
     : QDBusAbstractAdaptor(parent)
     , m_id(QStringLiteral("windows-tray-%1").arg(reinterpret_cast<quintptr>(this), 0, 16))
+    , m_connection(QDBusConnection::sessionBus())
 {
 }
 

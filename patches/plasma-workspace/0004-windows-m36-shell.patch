@@ -594,8 +594,8 @@ diff --git a/libtaskmanager/windowswindowtasksmodel.cpp b/libtaskmanager/windows
 new file mode 100644
 --- /dev/null
 +++ b/libtaskmanager/windowswindowtasksmodel.cpp
-@@ -0,0 +1,456 @@
-+/*
+@@ -0,0 +1,435 @@
++﻿/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
 +    SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
@@ -604,6 +604,7 @@ new file mode 100644
 +
 +#include <KWindowInfo>
 +#include <KWindowSystem>
++#include <KWindowSystemWindows>
 +
 +#include <QDateTime>
 +#include <QFileInfo>
@@ -624,60 +625,13 @@ new file mode 100644
 +
 +namespace
 +{
-+bool isSameWindowList(const QList<WId> &a, const QList<WId> &b)
-+{
-+    if (a.size() != b.size()) {
-+        return false;
-+    }
-+    for (int i = 0; i < a.size(); ++i) {
-+        if (a.at(i) != b.at(i)) {
-+            return false;
-+        }
-+    }
-+    return true;
-+}
-+
-+bool isTaskbarCandidate(HWND hwnd)
-+{
-+    if (!IsWindow(hwnd) || !IsWindowVisible(hwnd)) {
-+        return false;
-+    }
-+    if (GetAncestor(hwnd, GA_ROOT) != hwnd) {
-+        return false;
-+    }
-+    if (GetWindow(hwnd, GW_OWNER) != nullptr) {
-+        return false;
-+    }
-+    const LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-+    if (exStyle & WS_EX_TOOLWINDOW) {
-+        return false;
-+    }
-+    DWORD cloaked = 0;
-+    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked) {
-+        return false;
-+    }
-+    return true;
-+}
-+
-+BOOL CALLBACK enumWindowsProc(HWND hwnd, LPARAM lParam)
-+{
-+    auto *list = reinterpret_cast<QList<WId> *>(lParam);
-+    if (isTaskbarCandidate(hwnd)) {
-+        list->append(reinterpret_cast<WId>(hwnd));
-+    }
-+    return TRUE;
-+}
-+
-+QList<WId> windowList()
-+{
-+    QList<WId> list;
-+    EnumWindows(enumWindowsProc, reinterpret_cast<LPARAM>(&list));
-+    return list;
-+}
-+
 +QIcon iconForWindow(HWND hwnd)
 +{
 +    HICON icon = nullptr;
++    // WM_GETICON / GCLP_HICON handles are owned by the window/class and must
++    // NOT be destroyed (DestroyIcon would invalidate the class icon for
++    // every other window). Only SHGetFileInfo hands us a fresh handle.
++    bool owned = false;
 +    SendMessageTimeoutW(hwnd, WM_GETICON, ICON_SMALL2, 0, SMTO_ABORTIFHUNG, 500, reinterpret_cast<DWORD_PTR *>(&icon));
 +    if (!icon) {
 +        icon = reinterpret_cast<HICON>(GetClassLongPtrW(hwnd, GCLP_HICON));
@@ -693,6 +647,7 @@ new file mode 100644
 +            SHFILEINFOW shfi = {};
 +            if (SHGetFileInfoW(buf, 0, &shfi, sizeof(shfi), SHGFI_ICON | SHGFI_SMALLICON)) {
 +                icon = shfi.hIcon;
++                owned = true;
 +            }
 +        }
 +        if (process) {
@@ -703,7 +658,9 @@ new file mode 100644
 +    QIcon result;
 +    if (icon) {
 +        result = QIcon(QPixmap::fromImage(QImage::fromHICON(icon)));
-+        DestroyIcon(icon);
++        if (owned) {
++            DestroyIcon(icon);
++        }
 +    }
 +    return result;
 +}
@@ -736,11 +693,14 @@ new file mode 100644
 +    Private(WindowsWindowTasksModel *q);
 +    ~Private();
 +
-+    void reload(bool structural);
++    void addWindow(WId id);
++    void removeWindow(WId id);
++    void setActiveWindow(WId id);
++    void initialLoad();
 +    void refreshData();
 +
 +    WindowsWindowTasksModel *const q;
-+    QTimer *timer = nullptr;
++    QTimer refreshTimer;
 +    QList<WId> windows;
 +    WId activeWindow = 0;
 +};
@@ -748,74 +708,93 @@ new file mode 100644
 +WindowsWindowTasksModel::Private::Private(WindowsWindowTasksModel *q)
 +    : q(q)
 +{
-+    timer = new QTimer(q);
-+    timer->setInterval(500);
-+    QObject::connect(timer, &QTimer::timeout, q, [this]() {
-+        const HWND foreground = GetForegroundWindow();
-+        const WId fg = foreground ? reinterpret_cast<WId>(foreground) : 0;
-+        if (fg != activeWindow) {
-+            activeWindow = fg;
-+            refreshData();
-+        }
-+        reload(false);
-+    });
-+    timer->start();
++    // Event-driven: consume KWindowSystemWindows' WinEventHook sources
++    // instead of re-enumerating windows on a polling timer (see A1/A2 in
++    // the porting review - the duplicated taskbar-candidate filter and the
++    // 500ms full dataChanged churn are gone).
++    KWindowSystemWindows *kws = KWindowSystemWindows::self();
++    connect(kws, &KWindowSystemWindows::windowAdded, q, [this](WId id) { addWindow(id); });
++    connect(kws, &KWindowSystemWindows::windowRemoved, q, [this](WId id) { removeWindow(id); });
++    connect(kws, &KWindowSystemWindows::activeWindowChanged, q, [this](WId id) { setActiveWindow(id); });
++
++    // WinEventHook does not report title/icon/minimize changes; a slow
++    // refresh keeps those roles current without the old 500ms full churn.
++    refreshTimer.setInterval(2000);
++    connect(&refreshTimer, &QTimer::timeout, q, [this]() { refreshData(); });
++    refreshTimer.start();
++
 +    // Delay the initial load until after TasksModel has added us to its
 +    // QConcatenateTablesProxyModel: it builds its row mapping from
 +    // rowsInserted signals, so rows that already exist at addSourceModel()
 +    // time would never get mapped (their data() would read empty).
-+    QTimer::singleShot(0, q, [this]() {
-+        reload(true);
-+    });
++    QTimer::singleShot(0, q, [this]() { initialLoad(); });
 +}
 +
 +WindowsWindowTasksModel::Private::~Private() = default;
 +
-+void WindowsWindowTasksModel::Private::reload(bool structural)
++void WindowsWindowTasksModel::Private::addWindow(WId id)
 +{
-+    // EnumWindows via our own taskbar-candidate filter; drop our own shell
-+    // windows too (KWindowSystem has no stackingOrder on Windows).
-+    // NOTE: incremental updates only - QConcatenateTablesProxyModel in
-+    // TasksModel breaks its data forwarding on beginResetModel().
++    if (windows.contains(id)) {
++        return;
++    }
++    const HWND hwnd = reinterpret_cast<HWND>(id);
++    if (!::IsWindow(hwnd)) {
++        return;
++    }
++    DWORD pid = 0;
++    GetWindowThreadProcessId(hwnd, &pid);
++    if (pid == GetCurrentProcessId()) {
++        return; // our own shell windows
++    }
++    q->beginInsertRows(QModelIndex(), windows.size(), windows.size());
++    windows.append(id);
++    q->endInsertRows();
++}
++
++void WindowsWindowTasksModel::Private::removeWindow(WId id)
++{
++    const int idx = windows.indexOf(id);
++    if (idx < 0) {
++        return;
++    }
++    q->beginRemoveRows(QModelIndex(), idx, idx);
++    windows.removeAt(idx);
++    q->endRemoveRows();
++    if (id == activeWindow) {
++        activeWindow = 0;
++    }
++}
++
++void WindowsWindowTasksModel::Private::setActiveWindow(WId id)
++{
++    if (id == activeWindow) {
++        return;
++    }
++    activeWindow = id;
++    refreshData();
++}
++
++void WindowsWindowTasksModel::Private::initialLoad()
++{
++    // Snapshot through the same KWindowSystemWindows path the events come
++    // from, so snapshot + events never disagree on the candidate filter.
 +    const DWORD shellPid = GetCurrentProcessId();
-+    QList<WId> newWindows;
-+    const QList<WId> all = windowList();
-+    newWindows.reserve(all.size());
++    const QList<WId> all = KWindowSystemWindows::windows();
 +    for (const WId id : all) {
 +        DWORD pid = 0;
 +        GetWindowThreadProcessId(reinterpret_cast<HWND>(id), &pid);
-+        if (pid != shellPid) {
-+            newWindows.append(id);
++        if (pid != shellPid && !windows.contains(id)) {
++            q->beginInsertRows(QModelIndex(), windows.size(), windows.size());
++            windows.append(id);
++            q->endInsertRows();
 +        }
 +    }
-+
-+    if (!isSameWindowList(newWindows, windows)) {
-+        const QSet<WId> oldSet(windows.begin(), windows.end());
-+        const QSet<WId> newSet(newWindows.begin(), newWindows.end());
-+
-+        for (int i = windows.size() - 1; i >= 0; --i) {
-+            if (!newSet.contains(windows.at(i))) {
-+                q->beginRemoveRows(QModelIndex(), i, i);
-+                windows.removeAt(i);
-+                q->endRemoveRows();
-+            }
-+        }
-+        for (int i = 0; i < newWindows.size(); ++i) {
-+            if (!oldSet.contains(newWindows.at(i))) {
-+                q->beginInsertRows(QModelIndex(), i, i);
-+                windows.insert(i, newWindows.at(i));
-+                q->endInsertRows();
-+            }
-+        }
-+    }
-+
++    activeWindow = KWindowSystemWindows::activeWindow();
 +    refreshData();
 +}
 +
 +void WindowsWindowTasksModel::Private::refreshData()
 +{
-+    const HWND foreground = GetForegroundWindow();
-+    activeWindow = foreground ? reinterpret_cast<WId>(foreground) : 0;
 +    if (q->rowCount() > 0) {
 +        q->dataChanged(q->index(0), q->index(q->rowCount() - 1));
 +    }

@@ -7,6 +7,7 @@
 
 #include <QByteArray>
 #include <QDBusAbstractAdaptor>
+#include <QDBusConnection>
 #include <QDBusObjectPath>
 #include <QDBusVariant>
 #include <QMap>
@@ -82,6 +83,8 @@ public:
     void setCallback(HWND hwnd, UINT uID, UINT message, UINT version);
     void setServiceName(const QString &name) { m_serviceName = name; }
     const QString &serviceName() const { return m_serviceName; }
+    void setConnection(const QDBusConnection &conn) { m_connection = conn; }
+    QDBusConnection connection() const { return m_connection; }
 
 Q_SIGNALS:
     void titleChanged();
@@ -104,6 +107,7 @@ private:
 
     QString m_id;
     QString m_serviceName;
+    QDBusConnection m_connection;
     QString m_title;
     HWND m_hwnd = nullptr;
     UINT m_uID = 0;

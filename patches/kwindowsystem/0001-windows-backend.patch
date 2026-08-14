@@ -1442,7 +1442,7 @@ new file mode 100644
 index 0000000..1c8b49f
 --- /dev/null
 b/src/platforms/windows/windowslist.cpp
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,200 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Plasma Windows contributors
 +
@@ -1510,7 +1510,7 @@ b/src/platforms/windows/windowslist.cpp
 +                        }
 +                    },
 +                    0, 0, WINEVENT_OUTOFCONTEXT);
-+    SetWinEventHook(EVENT_OBJECT_CREATE, EVENT_OBJECT_DESTROY, nullptr,
++    SetWinEventHook(EVENT_OBJECT_CREATE, EVENT_OBJECT_HIDE, nullptr,
 +                    [](HWINEVENTHOOK, DWORD event, HWND hwnd, LONG idObject, LONG, DWORD, DWORD) {
 +                        if (!s_windowList || idObject != OBJID_WINDOW || !IsWindow(hwnd)) {
 +                            return;
@@ -1518,8 +1518,16 @@ b/src/platforms/windows/windowslist.cpp
 +                        if (event == EVENT_OBJECT_DESTROY) {
 +                            QMetaObject::invokeMethod(s_windowList, "handleWindowRemoved", Qt::QueuedConnection,
 +                                                      Q_ARG(qulonglong, reinterpret_cast<qulonglong>(hwnd)));
-+                        } else if (event == EVENT_OBJECT_CREATE || event == EVENT_OBJECT_SHOW || event == EVENT_OBJECT_HIDE) {
++                        } else if (event == EVENT_OBJECT_CREATE || event == EVENT_OBJECT_SHOW) {
 +                            QMetaObject::invokeMethod(s_windowList, "handleWindowAdded", Qt::QueuedConnection,
++                                                      Q_ARG(qulonglong, reinterpret_cast<qulonglong>(hwnd)));
++                        } else if (event == EVENT_OBJECT_HIDE) {
++                            // A hidden window leaves the taskbar (same
++                            // behaviour as Explorer); SHOW re-adds it. Routing
++                            // HIDE through handleWindowAdded would drop it in
++                            // isTaskbarCandidate (IsWindowVisible == false) and
++                            // never emit windowRemoved, leaving stale entries.
++                            QMetaObject::invokeMethod(s_windowList, "handleWindowRemoved", Qt::QueuedConnection,
 +                                                      Q_ARG(qulonglong, reinterpret_cast<qulonglong>(hwnd)));
 +                        }
 +                    },
@@ -1913,3 +1921,4 @@ b/src/pluginwrapper_p.h
  
  private:
      std::unique_ptr<KWindowSystemPluginInterface> m_plugin;
+

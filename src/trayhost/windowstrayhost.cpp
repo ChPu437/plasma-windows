@@ -388,16 +388,25 @@ void WindowsTrayHost::unregisterBridge(quint64 key)
     if (!bridge) {
         return;
     }
-    // Destroy the bridge object first, then disconnect its bus connection
-    // on a deferred timer: disconnecting while the adaptor is still alive
-    // races Qt's connection teardown and crashed (Qt6Core 0xf2ec2/0xf754d)
-    // under DELETE/ADD churn (Wallpaper Engine re-registers constantly).
+    // Proper teardown order: unregister the object from its bus connection
+    // FIRST (synchronously removes the adaptors from Qt's dispatch table,
+    // so no in-flight DBus call can reach the bridge), then unregister the
+    // service name (drops it from the StatusNotifierWatcher), then destroy
+    // the bridge, then close the connection on a deferred timer. Destroying
+    // the bridge while the connection still dispatches to it crashed with a
+    // null deref in Qt6Core (0xf2ec2/0xf3097) under DELETE/ADD churn.
     const QString serviceName = bridge->serviceName();
-    bridge->deleteLater();
+    const QString bridgeId = bridge->id();
+    QDBusConnection conn = bridge->connection();
+    if (conn.isConnected()) {
+        conn.unregisterObject(QStringLiteral("/StatusNotifierItem"));
+        conn.unregisterService(serviceName);
+    }
+    delete bridge;
     QTimer::singleShot(100, this, [serviceName]() {
         QDBusConnection::disconnectFromBus(serviceName);
     });
-    logLine(QStringLiteral("  SNI unregistered: %1").arg(bridge->id()));
+    logLine(QStringLiteral("  SNI unregistered: %1").arg(bridgeId));
 }
 
 Snibridge *WindowsTrayHost::registerBridge(quint64 key, const IconEntry &e)
@@ -414,6 +423,7 @@ Snibridge *WindowsTrayHost::registerBridge(quint64 key, const IconEntry &e)
     // dynamic registerObject path does not synthesize from Q_PROPERTYs.
     new SnibridgeProperties(bridge);
     QDBusConnection conn = QDBusConnection::connectToBus(QDBusConnection::SessionBus, service);
+    bridge->setConnection(conn);
     if (!conn.isConnected() || !conn.registerService(service)) {
         logLine(QStringLiteral("  SNI registerService failed for %1").arg(service));
         delete bridge;

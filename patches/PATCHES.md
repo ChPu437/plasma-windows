@@ -257,9 +257,17 @@ taskbar work of M3.6-M3.7:
   `<appdir>/data/icons` after the Kirigami controls plugin overwrote
   them during QML engine setup (Windows).
 * `libtaskmanager/windowswindowtasksmodel.{h,cpp}` (new): the Windows
-  window tasks model (EnumWindows + taskbar-candidate filter, own
-  process skipped, Win32 icons, activate/close/minimize/maximize,
-  incremental updates).
+  window tasks model (Win32 icons, activate/close/minimize/maximize).
+  2026-08-14 porting-review pass (A1/A2/C3/C4/C5): the model now consumes
+  `KWindowSystemWindows` events (windowAdded/windowRemoved/
+  activeWindowChanged) instead of its own EnumWindows + taskbar-candidate
+  copy on a 500ms polling timer - the duplicated candidate filter is
+  gone, the initial snapshot goes through the same
+  `KWindowSystemWindows::windows()` path, and a 2s refresh timer keeps
+  title/icon/state roles current (WinEventHook does not report those).
+  `iconForWindow` no longer destroys WM_GETICON/GCLP_HICON handles
+  (shared, owned by window/class - only the SHGetFileInfo fallback
+  handle is owned).
 * `libtaskmanager/windowtasksmodel.cpp`: create `WindowsWindowTasksModel`
   on Windows (Wayland/X11 branches excluded).
 * `libtaskmanager/concatenatetasksproxymodel.{h,cpp}`: on Windows a
@@ -300,6 +308,18 @@ panel, not the desktop.
 `0001-windows-backend.patch` regenerated from the clean 6.28.0 source;
 adds `windowslist.cpp::setShowingDesktop` skipping windows of the
 current process (so "show desktop" never hides the plasma desktop/panel).
+
+2026-08-14 (A2 from the porting review): `EVENT_OBJECT_HIDE` now routes to
+`handleWindowRemoved` instead of `handleWindowAdded` - routing HIDE to
+the add-path dropped the window in `isTaskbarCandidate`
+(`IsWindowVisible == false`) and never emitted `windowRemoved`, leaving
+stale entries in the taskbar. SHOW re-adds; behaviour matches Explorer.
+Also widened the object hook range from `EVENT_OBJECT_CREATE..DESTROY`
+to `EVENT_OBJECT_CREATE..HIDE`: SHOW(0x8002)/HIDE(0x8003) are outside
+the old range, so windows created while invisible were never re-added on
+SHOW (taskbar did not grow when opening windows).
+Note: `setShowingDesktop` remains unused by the shell (KWin effect
+semantics differ); documented so nobody misuses it.
 
 Also carries (2026-08-13, re-verified by craft rebuild from clean tar):
 
