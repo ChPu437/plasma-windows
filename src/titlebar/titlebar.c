@@ -328,6 +328,7 @@ typedef struct
     BOOL dragging;
     BOOL maximized;      /* our manual maximize state */
     RECT restoreRect;    /* window rect before our maximize */
+    int hoverBtn;        /* BTN_* under the cursor (0 = none) */
 } OverlayCtx;
 
 static OverlayCtx g_ov = {0};
@@ -380,19 +381,118 @@ static void overlayUpdateTitle(void)
     }
 }
 
+/* Breeze-style bar buttons: minimize / maximize-restore / close, hit
+   from the right edge. BTN_NONE must be 0: g_ov is zero-initialized. */
+#define BTN_NONE 0
+#define BTN_MIN 1
+#define BTN_MAX 2
+#define BTN_CLOSE 3
+
+/* manual maximize/restore - the system SC_MAXIMIZE would own the window
+   (raise it over the bar; its restore rect tracks the moved rect so
+   repeated maximize shrinks the window every time). */
+static void toggleMaximize(void)
+{
+    if (!IsWindow(g_ov.target)) {
+        return;
+    }
+    if (g_ov.maximized) {
+        SetWindowPos(g_ov.target, NULL, g_ov.restoreRect.left, g_ov.restoreRect.top,
+                     g_ov.restoreRect.right - g_ov.restoreRect.left,
+                     g_ov.restoreRect.bottom - g_ov.restoreRect.top,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        g_ov.maximized = FALSE;
+        overlayLog(L"manual restore\n");
+    } else {
+        GetWindowRect(g_ov.target, &g_ov.restoreRect);
+        MONITORINFO mi = {sizeof(mi)};
+        GetMonitorInfoW(MonitorFromWindow(g_ov.target, MONITOR_DEFAULTTOPRIMARY), &mi);
+        /* work area minus a BAR_H strip at the top for the bar */
+        RECT wa = mi.rcWork;
+        SetWindowPos(g_ov.target, NULL, wa.left, wa.top + BAR_H,
+                     wa.right - wa.left, wa.bottom - wa.top - BAR_H,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        g_ov.maximized = TRUE;
+        overlayLog(L"manual maximize restore=%d,%d,%d,%d\n",
+                   g_ov.restoreRect.left, g_ov.restoreRect.top,
+                   g_ov.restoreRect.right, g_ov.restoreRect.bottom);
+    }
+    overlayReposition();
+    InvalidateRect(g_ov.bar, NULL, FALSE);
+}
+
+static int barHitTest(int x)
+{
+    RECT cr;
+    GetClientRect(g_ov.bar, &cr);
+    const int w = cr.right;
+    if (x >= w - BTN_W) {
+        return BTN_CLOSE;
+    }
+    if (x >= w - BTN_W * 2) {
+        return BTN_MAX;
+    }
+    if (x >= w - BTN_W * 3) {
+        return BTN_MIN;
+    }
+    return BTN_NONE;
+}
+
+static void drawButtonIcon(HDC dc, const RECT *br, int btn, COLORREF color)
+{
+    const int cx = (br->left + br->right) / 2;
+    const int cy = (br->top + br->bottom) / 2;
+    HPEN pen = CreatePen(PS_SOLID, 2, color);
+    HPEN oldPen = (HPEN)SelectObject(dc, pen);
+    HBRUSH oldBrush = (HBRUSH)SelectObject(dc, GetStockObject(NULL_BRUSH));
+    switch (btn) {
+    case BTN_MIN:
+        /* single horizontal bar */
+        MoveToEx(dc, cx - 7, cy, NULL);
+        LineTo(dc, cx + 7, cy);
+        break;
+    case BTN_MAX:
+        if (g_ov.maximized) {
+            /* restore: two overlapping squares */
+            Rectangle(dc, cx - 6, cy - 6, cx + 1, cy + 1);
+            Rectangle(dc, cx - 1, cy - 1, cx + 6, cy + 6);
+        } else {
+            /* maximize: hollow square */
+            Rectangle(dc, cx - 6, cy - 6, cx + 7, cy + 7);
+        }
+        break;
+    case BTN_CLOSE:
+        /* X */
+        MoveToEx(dc, cx - 5, cy - 5, NULL);
+        LineTo(dc, cx + 6, cy + 6);
+        MoveToEx(dc, cx + 6, cy - 5, NULL);
+        LineTo(dc, cx - 5, cy + 6);
+        break;
+    default:
+        break;
+    }
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(pen);
+}
+
 static void overlayActOn(int x)
 {
-    /* x within the bar: last BTN_W = close, previous = minimize */
-    if (g_ov.bar && IsWindow(g_ov.target)) {
-        int w;
-        RECT r;
-        GetWindowRect(g_ov.bar, &r);
-        w = r.right - r.left;
-        if (x >= w - BTN_W) {
-            SendMessageW(g_ov.target, WM_SYSCOMMAND, SC_CLOSE, 0);
-        } else if (x >= w - BTN_W * 2) {
-            SendMessageW(g_ov.target, WM_SYSCOMMAND, SC_MINIMIZE, 0);
-        }
+    if (!g_ov.bar || !IsWindow(g_ov.target)) {
+        return;
+    }
+    switch (barHitTest(x)) {
+    case BTN_MIN:
+        SendMessageW(g_ov.target, WM_SYSCOMMAND, SC_MINIMIZE, 0);
+        break;
+    case BTN_MAX:
+        toggleMaximize();
+        break;
+    case BTN_CLOSE:
+        SendMessageW(g_ov.target, WM_SYSCOMMAND, SC_CLOSE, 0);
+        break;
+    default:
+        break;
     }
 }
 
@@ -531,47 +631,47 @@ static LRESULT CALLBACK barWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         HDC dc = BeginPaint(hwnd, &ps);
         RECT r;
         GetClientRect(hwnd, &r);
-        /* plasma-ish dark bar */
-        HBRUSH bg = CreateSolidBrush(RGB(45, 45, 48));
+        /* Breeze light title bar */
+        HBRUSH bg = CreateSolidBrush(RGB(239, 240, 241));
         FillRect(dc, &r, bg);
         DeleteObject(bg);
-        /* title */
+        /* title, centered (Breeze default) */
         SetBkMode(dc, TRANSPARENT);
-        SetTextColor(dc, RGB(230, 230, 230));
-        RECT tr = {8, 0, r.right - BTN_W * 2, r.bottom};
-        DrawTextW(dc, g_ov.title, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-        /* buttons */
-        RECT close = {r.right - BTN_W, 0, r.right, r.bottom};
-        RECT min = {r.right - BTN_W * 2, 0, r.right - BTN_W, r.bottom};
-        FrameRect(dc, &min, (HBRUSH)GetStockObject(GRAY_BRUSH));
-        FrameRect(dc, &close, (HBRUSH)GetStockObject(GRAY_BRUSH));
-        /* minimize: small horizontal line */
-        POINT ml = {min.left + 10, min.top + 16};
-        POINT mr = {min.right - 10, min.top + 16};
-        HPEN pen = CreatePen(PS_SOLID, 1, RGB(230, 230, 230));
-        HPEN old = (HPEN)SelectObject(dc, pen);
-        MoveToEx(dc, ml.x, ml.y, NULL);
-        LineTo(dc, mr.x, mr.y);
-        /* close: X */
-        MoveToEx(dc, close.left + 9, close.top + 9, NULL);
-        LineTo(dc, close.right - 9, close.bottom - 9);
-        MoveToEx(dc, close.right - 9, close.top + 9, NULL);
-        LineTo(dc, close.left + 9, close.bottom - 9);
-        SelectObject(dc, old);
-        DeleteObject(pen);
+        SetTextColor(dc, RGB(35, 38, 41));
+        HFONT font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+        HFONT oldFont = (HFONT)SelectObject(dc, font);
+        RECT tr = {8, 0, r.right - BTN_W * 3, r.bottom};
+        DrawTextW(dc, g_ov.title, -1, &tr, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        SelectObject(dc, oldFont);
+        /* bottom hairline */
+        HPEN linePen = CreatePen(PS_SOLID, 1, RGB(208, 209, 210));
+        HPEN oldPen = (HPEN)SelectObject(dc, linePen);
+        MoveToEx(dc, 0, r.bottom - 1, NULL);
+        LineTo(dc, r.right, r.bottom - 1);
+        SelectObject(dc, oldPen);
+        DeleteObject(linePen);
+        /* buttons: minimize, maximize/restore, close */
+        for (int b = BTN_MIN; b <= BTN_CLOSE; ++b) {
+            RECT br = {r.right - BTN_W * (BTN_CLOSE - b + 1), 0,
+                       r.right - BTN_W * (BTN_CLOSE - b), r.bottom};
+            if (g_ov.hoverBtn == b) {
+                HBRUSH hb = CreateSolidBrush(b == BTN_CLOSE ? RGB(232, 17, 35) : RGB(205, 209, 212));
+                FillRect(dc, &br, hb);
+                DeleteObject(hb);
+            }
+            /* white glyph on the red close hover, dark otherwise */
+            const COLORREF ic = (b == BTN_CLOSE && g_ov.hoverBtn == BTN_CLOSE)
+                                    ? RGB(255, 255, 255)
+                                    : RGB(35, 38, 41);
+            drawButtonIcon(dc, &br, b, ic);
+        }
         EndPaint(hwnd, &ps);
         return 0;
     }
     case WM_LBUTTONDOWN: {
         int x = GET_X_LPARAM(lp);
-        RECT cr;
-        GetClientRect(hwnd, &cr);
         /* buttons take priority */
-        if (x >= cr.right - BTN_W) {
-            overlayActOn(x);
-            return 0;
-        }
-        if (x >= cr.right - BTN_W * 2) {
+        if (barHitTest(x) != BTN_NONE) {
             overlayActOn(x);
             return 0;
         }
@@ -594,40 +694,28 @@ static LRESULT CALLBACK barWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 beginManualDrag(hwnd);
             }
         }
+        /* hover highlight (Breeze) */
+        {
+            const int btn = barHitTest(GET_X_LPARAM(lp));
+            if (btn != g_ov.hoverBtn) {
+                g_ov.hoverBtn = btn;
+                InvalidateRect(hwnd, NULL, FALSE);
+            }
+            TRACKMOUSEEVENT tme = {sizeof(tme), TME_LEAVE, hwnd, 0};
+            TrackMouseEvent(&tme);
+        }
         return 0;
     }
+    case WM_MOUSELEAVE:
+        if (g_ov.hoverBtn != BTN_NONE) {
+            g_ov.hoverBtn = BTN_NONE;
+            InvalidateRect(hwnd, NULL, FALSE);
+        }
+        return 0;
     case WM_LBUTTONDBLCLK: {
         KillTimer(hwnd, 1);
         ReleaseCapture();
-        if (!IsWindow(g_ov.target)) {
-            return 0;
-        }
-        if (g_ov.maximized) {
-            SetWindowPos(g_ov.target, NULL, g_ov.restoreRect.left, g_ov.restoreRect.top,
-                         g_ov.restoreRect.right - g_ov.restoreRect.left,
-                         g_ov.restoreRect.bottom - g_ov.restoreRect.top,
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-            g_ov.maximized = FALSE;
-            overlayLog(L"manual restore\n");
-        } else {
-            GetWindowRect(g_ov.target, &g_ov.restoreRect);
-            MONITORINFO mi = {sizeof(mi)};
-            GetMonitorInfoW(MonitorFromWindow(g_ov.target, MONITOR_DEFAULTTOPRIMARY), &mi);
-            /* manual maximize: work area minus a BAR_H strip at the top
-               for the bar. Deliberately NOT SC_MAXIMIZE - the system
-               would then own the window (raise it over the bar, and its
-               restore rect tracks our moved rect so repeated maximize
-               makes the window shorter every time). */
-            RECT wa = mi.rcWork;
-            SetWindowPos(g_ov.target, NULL, wa.left, wa.top + BAR_H,
-                         wa.right - wa.left, wa.bottom - wa.top - BAR_H,
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-            g_ov.maximized = TRUE;
-            overlayLog(L"manual maximize restore=%d,%d,%d,%d\n",
-                       g_ov.restoreRect.left, g_ov.restoreRect.top,
-                       g_ov.restoreRect.right, g_ov.restoreRect.bottom);
-        }
-        overlayReposition();
+        toggleMaximize();
         return 0;
     }
     case WM_LBUTTONUP:
