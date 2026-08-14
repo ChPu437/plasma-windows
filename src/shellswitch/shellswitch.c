@@ -146,6 +146,25 @@ static BOOL isProcessRunning(const WCHAR *imageName)
     return found;
 }
 
+/* The plasma session bus lives at tcp:127.0.0.1:12443 and is only set
+   in the env by plasma-common.cmd (pc_setup_env). This process usually
+   does NOT have it, so children started from the watchdog must get it
+   explicitly - without it kded6 never registers the SNI watcher and
+   trayhost bridges silently fail to register (tray stays empty). */
+static void startChildWithDbus(const WCHAR *exePath)
+{
+    WCHAR cmd[MAX_PATH * 4];
+    StringCchPrintfW(cmd, MAX_PATH * 4,
+                     L"cmd.exe /c set \"DBUS_SESSION_BUS_ADDRESS=tcp:host=127.0.0.1,port=12443\" && start \"\" \"%s\"",
+                     exePath);
+    STARTUPINFOW si = {sizeof(si)};
+    PROCESS_INFORMATION pi = {0};
+    if (CreateProcessW(NULL, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+}
+
 /* kded6 watchdog: kded6 owns org.kde.StatusNotifierWatcher - while it
    is down the plasma tray stays empty no matter how healthy trayhost
    is (its bridges only register with the watcher when it appears).
@@ -172,13 +191,8 @@ static void ensureKded6(void)
     if (GetFileAttributesW(kdedPath) == INVALID_FILE_ATTRIBUTES) {
         return;
     }
-    STARTUPINFOW si = {sizeof(si)};
-    PROCESS_INFORMATION pi = {0};
-    if (CreateProcessW(kdedPath, NULL, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
-        logMsg(L"kded6 restarted\n");
-    }
+    logMsg(L"kded6 restarted\n");
+    startChildWithDbus(kdedPath);
 }
 
 /* trayhost watchdog: while a plasma session is up, make sure trayhost
@@ -206,13 +220,8 @@ static void ensureTrayHost(void)
     if (GetFileAttributesW(trayhostPath) == INVALID_FILE_ATTRIBUTES) {
         return;
     }
-    STARTUPINFOW si = {sizeof(si)};
-    PROCESS_INFORMATION pi = {0};
-    if (CreateProcessW(trayhostPath, NULL, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
-        logMsg(L"trayhost restarted\n");
-    }
+    logMsg(L"trayhost restarted\n");
+    startChildWithDbus(trayhostPath);
 }
 
 static void killPlasmaSession(void)
