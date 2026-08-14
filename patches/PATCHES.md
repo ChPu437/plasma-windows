@@ -267,7 +267,13 @@ taskbar work of M3.6-M3.7:
   title/icon/state roles current (WinEventHook does not report those).
   `iconForWindow` no longer destroys WM_GETICON/GCLP_HICON handles
   (shared, owned by window/class - only the SHGetFileInfo fallback
-  handle is owned).
+  handle is owned). 2026-08-14 follow-up: `setActiveWindow` filters out
+  plasmashell's own windows - clicking the panel activates it (needed
+  since 0005 for popup-menu dismissal) and without the filter the panel
+  became the tracked active window, so clicking an active task's icon
+  never matched activeWindow and TaskTools fell through to
+  requestActivate instead of requestToggleMinimized (click-to-minimize
+  broke). The real Windows taskbar never takes activation either.
 * `libtaskmanager/windowtasksmodel.cpp`: create `WindowsWindowTasksModel`
   on Windows (Wayland/X11 branches excluded).
 * `libtaskmanager/concatenatetasksproxymodel.{h,cpp}`: on Windows a
