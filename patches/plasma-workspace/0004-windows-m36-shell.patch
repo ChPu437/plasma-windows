@@ -146,7 +146,7 @@ index cdb1e5c..ed30de9 100644
  }
  
  void PanelView::keyPressEvent(QKeyEvent *event)
-@@ -1160,8 +1167,55 @@ void PanelView::showEvent(QShowEvent *event)
+@@ -1160,8 +1167,63 @@ void PanelView::showEvent(QShowEvent *event)
  
      integrateScreen();
      updateEditModeLabel();
