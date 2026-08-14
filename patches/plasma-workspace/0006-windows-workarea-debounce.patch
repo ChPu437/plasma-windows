@@ -1,0 +1,43 @@
+--- a/shell/panelview.cpp
++++ b/shell/panelview.cpp
+@@ -97,6 +97,19 @@
+     // owns the desktop; the panel must stay visible above it).
+     setFlags(flags() | Qt::WindowStaysOnTopHint);
+ #endif
++#ifdef Q_OS_WIN
++    // Deferred work-area update: the panel (auto-hide / snap) animation
++    // fires moveEvent every frame, and each SPI_SETWORKAREA with
++    // SPIF_SENDCHANGE synchronously broadcasts WM_SETTINGCHANGE to every
++    // top-level window - animating panels stalled window dragging until
++    // the animation finished. restart(0) collapses the whole animation
++    // into one update after the last frame.
++    m_workAreaTimer.setSingleShot(true);
++    m_workAreaTimer.setInterval(0);
++    connect(&m_workAreaTimer, &QTimer::timeout, this, [this]() {
++        updateWorkArea(isVisible());
++    });
++#endif
+     updateAdaptiveOpacityEnabled();
+ 
+     connect(&m_theme, &Plasma::Theme::themeChanged, this, &PanelView::updateMask);
+@@ -1100,7 +1113,9 @@
+         positionPanel();
+     }
+ #ifdef Q_OS_WIN
+-    updateWorkArea(isVisible());
++    // debounced: see constructor - per-frame SPI_SETWORKAREA during the
++    // panel animation synchronously stalls every top-level window
++    m_workAreaTimer.start(0);
+ #endif
+ }
+ 
+--- a/shell/panelview.h
++++ b/shell/panelview.h
+@@ -274,6 +274,7 @@
+     bool event(QEvent *e) override;
+ #ifdef Q_OS_WIN
+     void updateWorkArea(bool visible);
++    QTimer m_workAreaTimer;
+ #endif
+ 
+ Q_SIGNALS:

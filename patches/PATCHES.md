@@ -309,6 +309,20 @@ SetForegroundWindow triggers a DWM animation). Trade-off accepted for
 now: tray popup menus are dismissed by clicking other windows or the
 panel, not the desktop.
 
+`0006-windows-workarea-debounce.patch` (applied after 0005) - debounce
+the work-area update so the panel (auto-hide / snap) animation no longer
+stalls window dragging:
+
+* `shell/panelview.cpp`: `moveEvent` used to call `updateWorkArea()`
+  synchronously; the hide/show animation fires `moveEvent` every frame
+  and each `SPI_SETWORKAREA` with `SPIF_SENDCHANGE` synchronously
+  broadcasts `WM_SETTINGCHANGE` to every top-level window - dragging a
+  window while the panel animated was severely laggy until the animation
+  finished. `moveEvent` now restarts a single-shot `QTimer` (0 ms) which
+  collapses the whole animation into one `updateWorkArea()` call after
+  the last frame; show/hide keep their direct calls.
+* `shell/panelview.h`: add `QTimer m_workAreaTimer` member.
+
 ## kwindowsystem (6.28.0) - 0001 updated
 
 `0001-windows-backend.patch` regenerated from the clean 6.28.0 source;
