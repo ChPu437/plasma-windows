@@ -1,4 +1,4 @@
-﻿diff --git a/CMakeLists.txt b/CMakeLists.txt
+diff --git a/CMakeLists.txt b/CMakeLists.txt
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -51,6 +51,9 @@
