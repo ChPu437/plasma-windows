@@ -19,7 +19,7 @@ if not exist "%OUT%" mkdir "%OUT%"
 
 cl /nologo /EHsc /MD /utf-8 /O2 /DNDEBUG /DUNICODE /D_UNICODE /std:c17 ^
     "%SRC%\titlebar.c" ^
-    /Fo"%OUT%\\" /link user32.lib advapi32.lib dwmapi.lib /OUT:"%OUT%\titlebar.exe"
+    /Fo"%OUT%\\" /link user32.lib gdi32.lib advapi32.lib dwmapi.lib /OUT:"%OUT%\titlebar.exe"
 if errorlevel 1 (
     echo FAILED
     exit /b 1

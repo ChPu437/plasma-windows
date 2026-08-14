@@ -27,11 +27,14 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 #include <dwmapi.h>
 #include <strsafe.h>
 #include <stdio.h>
+#include <commctrl.h>
 
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "comctl32.lib")
 
 /* ------------------------------------------------------------------ */
 /* taxonomy                                                            */
@@ -301,6 +304,198 @@ static void watchLoop(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* overlay (Plasma-style title bar for decorated windows)              */
+/* ------------------------------------------------------------------ */
+/* A minimal spike of R1.3 section 4.4: a frameless WS_EX_NOACTIVATE
+   top-level bar above the target. It paints the title, draws close /
+   minimize buttons and forwards drag to the target via WM_NCLBUTTONDOWN
+   HTCAPTION (the target's own modal move loop - gives native move
+   animation and Win10 edge snap where available). */
+
+#define BAR_H 32
+#define BTN_W 32
+#define WM_OVERLAY_REPOSITION (WM_APP + 2)
+
+typedef struct
+{
+    HWND target;
+    HWND bar;
+    WCHAR title[512];
+    int cx; /* target width */
+} OverlayCtx;
+
+static OverlayCtx g_ov = {0};
+
+static void overlayReposition(void)
+{
+    if (!g_ov.bar || !IsWindow(g_ov.target)) {
+        return;
+    }
+    RECT r;
+    GetWindowRect(g_ov.target, &r);
+    /* place the bar right above the target, full target width */
+    SetWindowPos(g_ov.bar, g_ov.target, r.left, r.top - BAR_H, r.right - r.left, BAR_H,
+                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
+}
+
+static void overlayUpdateTitle(void)
+{
+    if (g_ov.target && g_ov.bar) {
+        GetWindowTextW(g_ov.target, g_ov.title, 512);
+        InvalidateRect(g_ov.bar, NULL, TRUE);
+    }
+}
+
+static void overlayActOn(int x)
+{
+    /* x within the bar: last BTN_W = close, previous = minimize */
+    if (g_ov.bar && IsWindow(g_ov.target)) {
+        int w;
+        RECT r;
+        GetWindowRect(g_ov.bar, &r);
+        w = r.right - r.left;
+        if (x >= w - BTN_W) {
+            SendMessageW(g_ov.target, WM_SYSCOMMAND, SC_CLOSE, 0);
+        } else if (x >= w - BTN_W * 2) {
+            SendMessageW(g_ov.target, WM_SYSCOMMAND, SC_MINIMIZE, 0);
+        }
+    }
+}
+
+static LRESULT CALLBACK barWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    switch (msg) {
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(hwnd, &ps);
+        RECT r;
+        GetClientRect(hwnd, &r);
+        /* plasma-ish dark bar */
+        HBRUSH bg = CreateSolidBrush(RGB(45, 45, 48));
+        FillRect(dc, &r, bg);
+        DeleteObject(bg);
+        /* title */
+        SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, RGB(230, 230, 230));
+        RECT tr = {8, 0, r.right - BTN_W * 2, r.bottom};
+        DrawTextW(dc, g_ov.title, -1, &tr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        /* buttons */
+        RECT close = {r.right - BTN_W, 0, r.right, r.bottom};
+        RECT min = {r.right - BTN_W * 2, 0, r.right - BTN_W, r.bottom};
+        FrameRect(dc, &min, (HBRUSH)GetStockObject(GRAY_BRUSH));
+        FrameRect(dc, &close, (HBRUSH)GetStockObject(GRAY_BRUSH));
+        /* minimize: small horizontal line */
+        POINT ml = {min.left + 10, min.top + 16};
+        POINT mr = {min.right - 10, min.top + 16};
+        HPEN pen = CreatePen(PS_SOLID, 1, RGB(230, 230, 230));
+        HPEN old = (HPEN)SelectObject(dc, pen);
+        MoveToEx(dc, ml.x, ml.y, NULL);
+        LineTo(dc, mr.x, mr.y);
+        /* close: X */
+        MoveToEx(dc, close.left + 9, close.top + 9, NULL);
+        LineTo(dc, close.right - 9, close.bottom - 9);
+        MoveToEx(dc, close.right - 9, close.top + 9, NULL);
+        LineTo(dc, close.left + 9, close.bottom - 9);
+        SelectObject(dc, old);
+        DeleteObject(pen);
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+    case WM_LBUTTONDOWN: {
+        int x = GET_X_LPARAM(lp);
+        RECT cr;
+        GetClientRect(hwnd, &cr);
+        /* buttons take priority */
+        if (x >= cr.right - BTN_W) {
+            overlayActOn(x);
+            return 0;
+        }
+        if (x >= cr.right - BTN_W * 2) {
+            overlayActOn(x);
+            return 0;
+        }
+        /* drag: forward to the target's modal move loop */
+        if (IsWindow(g_ov.target)) {
+            SendMessageW(g_ov.target, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
+        return 0;
+    }
+    case WM_LBUTTONDBLCLK: {
+        if (IsWindow(g_ov.target)) {
+            SendMessageW(g_ov.target, WM_NCLBUTTONDBLCLK, HTCAPTION, 0);
+        }
+        return 0;
+    }
+    case WM_OVERLAY_REPOSITION:
+        overlayReposition();
+        overlayUpdateTitle();
+        return 0;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+static HWND overlayCreate(HWND target)
+{
+    WNDCLASSW wc = {0};
+    wc.lpfnWndProc = barWndProc;
+    wc.hInstance = GetModuleHandleW(NULL);
+    wc.lpszClassName = L"PlasmaTitleBarOverlay";
+    wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
+    RegisterClassW(&wc);
+
+    g_ov.target = target;
+    RECT tr;
+    GetWindowRect(target, &tr);
+    HWND bar = CreateWindowExW(
+        WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+        wc.lpszClassName, L"",
+        WS_POPUP,
+        tr.left, tr.top - BAR_H, tr.right - tr.left, BAR_H,
+        NULL, NULL, wc.hInstance, NULL);
+    g_ov.bar = bar;
+    overlayUpdateTitle();
+    overlayReposition();
+    ShowWindow(bar, SW_SHOWNOACTIVATE);
+    return bar;
+}
+
+static void CALLBACK ovEventProc(HWINEVENTHOOK hHook, DWORD event, HWND hwnd, LONG idObject,
+                                 LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
+{
+    (void)hHook;
+    (void)event;
+    (void)idObject;
+    (void)idChild;
+    (void)dwEventThread;
+    (void)dwmsEventTime;
+    if (hwnd == g_ov.target && g_ov.bar) {
+        PostMessageW(g_ov.bar, WM_OVERLAY_REPOSITION, 0, 0);
+    }
+}
+
+static void overlayWatch(void)
+{
+    /* track the target: reposition on move/show/hide/minimize, update
+       the title on rename, quit when the target dies */
+    SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE, NULL, ovEventProc,
+                    0, 0, WINEVENT_OUTOFCONTEXT);
+    SetWinEventHook(EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_NAMECHANGE, NULL, ovEventProc,
+                    0, 0, WINEVENT_OUTOFCONTEXT);
+    SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, NULL, ovEventProc,
+                    0, 0, WINEVENT_OUTOFCONTEXT);
+    SetWinEventHook(EVENT_SYSTEM_MINIMIZESTART, EVENT_SYSTEM_MINIMIZEEND, NULL, ovEventProc,
+                    0, 0, WINEVENT_OUTOFCONTEXT);
+    SetWinEventHook(EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY, NULL, ovEventProc,
+                    0, 0, WINEVENT_OUTOFCONTEXT);
+
+    MSG msg;
+    while (GetMessageW(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+}
+
+/* ------------------------------------------------------------------ */
 
 int wmain(int argc, wchar_t **argv)
 {
@@ -316,6 +511,18 @@ int wmain(int argc, wchar_t **argv)
 
     if (wcscmp(argv[1], L"--watch") == 0) {
         watchLoop();
+        return 0;
+    }
+
+    if (wcscmp(argv[1], L"--overlay") == 0) {
+        const WCHAR *arg = argc >= 3 ? argv[2] : NULL;
+        HWND target = resolveHwnd(arg);
+        if (!target) {
+            wprintf(L"window not found\n");
+            return 1;
+        }
+        overlayCreate(target);
+        overlayWatch();
         return 0;
     }
 

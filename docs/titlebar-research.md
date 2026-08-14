@@ -18,6 +18,15 @@ watch mode. Still deferred to R2 (VM spikes): the Plasma overlay window
 without explorer, and the B-detection heuristic validation on real apps
 (open questions 2/5/8/10).
 
+**Known issue (2026-08-14, unfixed)**: the IME candidate window
+(TextInputHost, `Windows.UI.Core.CoreWindow` full-screen, vis=True)
+does not display while the plasma shell is the active shell (explorer
+closed). IME services are healthy (ctfmon/TextInputHost running, TSF
+contexts per app). Suspected z-order/covering relationship with the
+plasma desktop window; survives clean session restarts. Needs a live
+debug session (typing while enumerating the candidate window's
+z-order/placement). Tracked; not blocking.
+
 ## 1. The three approaches
 
 | Approach | Mechanism | Interactive Plasma chrome? | Injection? |
