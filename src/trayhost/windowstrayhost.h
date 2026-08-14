@@ -59,6 +59,7 @@ private:
     class Snibridge *registerBridge(quint64 key, const IconEntry &e);
     void unregisterBridge(quint64 key);
     void updateBridgeFromEntry(class Snibridge *bridge, const IconEntry &e);
+    void reRegisterAllBridges();
 
     static LRESULT CALLBACK trayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
@@ -66,6 +67,7 @@ private:
     HWND m_notifyWnd = nullptr;
     UINT m_taskbarCreatedMsg = 0;
     QTimer m_zOrderTimer;
+    class QDBusServiceWatcher *m_watcherWatcher = nullptr;
     QHash<quint64, IconEntry> m_icons;    // key: (quint64(hwnd) << 32) | uID
     QHash<QByteArray, quint64> m_guidMap; // GUID bytes -> primary key
     QHash<quint64, class Snibridge *> m_bridges;

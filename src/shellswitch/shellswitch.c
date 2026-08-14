@@ -146,6 +146,41 @@ static BOOL isProcessRunning(const WCHAR *imageName)
     return found;
 }
 
+/* kded6 watchdog: kded6 owns org.kde.StatusNotifierWatcher - while it
+   is down the plasma tray stays empty no matter how healthy trayhost
+   is (its bridges only register with the watcher when it appears).
+   Same restart policy as ensureTrayHost. */
+static void ensureKded6(void)
+{
+    if (!isProcessRunning(L"plasmashell.exe") || isProcessRunning(L"kded6.exe")) {
+        return;
+    }
+    if (g_dryRun) {
+        logMsg(L"[dry-run] would restart kded6.exe\n");
+        return;
+    }
+    WCHAR path[MAX_PATH];
+    if (GetModuleFileNameW(NULL, path, MAX_PATH) == 0) {
+        return;
+    }
+    WCHAR *slash = wcsrchr(path, L'\\');
+    if (slash) {
+        *slash = 0;
+    }
+    WCHAR kdedPath[MAX_PATH * 2];
+    StringCchPrintfW(kdedPath, MAX_PATH * 2, L"%s\\kded6.exe", path);
+    if (GetFileAttributesW(kdedPath) == INVALID_FILE_ATTRIBUTES) {
+        return;
+    }
+    STARTUPINFOW si = {sizeof(si)};
+    PROCESS_INFORMATION pi = {0};
+    if (CreateProcessW(kdedPath, NULL, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        logMsg(L"kded6 restarted\n");
+    }
+}
+
 /* trayhost watchdog: while a plasma session is up, make sure trayhost
    (the SNI bridge that puts this icon into the plasma tray) is alive -
    it crashes under heavy DELETE/ADD churn, taking the tray down. */
@@ -367,6 +402,7 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         break;
     case WM_TIMER:
         if (wp == 1) {
+            ensureKded6();
             ensureTrayHost();
         }
         break;

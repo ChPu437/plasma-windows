@@ -7,6 +7,7 @@
 
 #include <QCoreApplication>
 #include <QDBusMessage>
+#include <QDBusServiceWatcher>
 #include <QDateTime>
 #include <QFile>
 #include <QHash>
@@ -141,6 +142,20 @@ bool WindowsTrayHost::start()
     m_taskbarCreatedMsg = RegisterWindowMessageW(L"TaskbarCreated");
     SendNotifyMessageW(HWND_BROADCAST, m_taskbarCreatedMsg, 0, 0);
     logLine(QStringLiteral("TaskbarCreated broadcast (0x%1)").arg(m_taskbarCreatedMsg, 0, 16));
+
+    // SNI watcher reconnect: bridges register with
+    // org.kde.StatusNotifierWatcher (provided by kded6) exactly once at
+    // registerBridge time - a fire-and-forget send that silently fails
+    // while the watcher is down (kded6 crashed or still starting). Watch
+    // the watcher name; when it appears (re)register every live bridge so
+    // the tray icons come back without restarting trayhost.
+    m_watcherWatcher = new QDBusServiceWatcher(QStringLiteral("org.kde.StatusNotifierWatcher"),
+                                               QDBusConnection::sessionBus(),
+                                               QDBusServiceWatcher::WatchForOwnerChange, this);
+    connect(m_watcherWatcher, &QDBusServiceWatcher::serviceRegistered, this, [this](const QString &) {
+        logLine(QStringLiteral("SNI watcher appeared - re-registering %1 bridges").arg(m_bridges.size()));
+        reRegisterAllBridges();
+    });
 
     connect(&m_zOrderTimer, &QTimer::timeout, this, [this]() {
         HWND top = FindWindowW(L"Shell_TrayWnd", nullptr);
@@ -450,6 +465,27 @@ Snibridge *WindowsTrayHost::registerBridge(quint64 key, const IconEntry &e)
     m_bridges.insert(key, bridge);
     logLine(QStringLiteral("  SNI registered: %1 (key=0x%2)").arg(service).arg(key, 0, 16));
     return bridge;
+}
+
+void WindowsTrayHost::reRegisterAllBridges()
+{
+    if (m_bridges.isEmpty()) {
+        return;
+    }
+    for (auto it = m_bridges.constBegin(); it != m_bridges.constEnd(); ++it) {
+        Snibridge *bridge = it.value();
+        QDBusConnection conn = bridge->connection();
+        if (!conn.isConnected()) {
+            continue;
+        }
+        QDBusMessage reg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.StatusNotifierWatcher"),
+                                                          QStringLiteral("/StatusNotifierWatcher"),
+                                                          QStringLiteral("org.kde.StatusNotifierWatcher"),
+                                                          QStringLiteral("RegisterStatusNotifierItem"));
+        reg << bridge->serviceName();
+        conn.send(reg);
+    }
+    logLine(QStringLiteral("  SNI re-registered %1 bridges").arg(m_bridges.size()));
 }
 
 void WindowsTrayHost::logIcons()
