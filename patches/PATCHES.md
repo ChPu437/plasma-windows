@@ -396,6 +396,14 @@ move special members of dllexport classes (`KFileItem(KFileItem&&)`,
 export is impossible (C2487), hence the whole-library export. See
 `docs/dolphin-windows.md` for the Dolphin build.
 
+2026-08-14 (porting review B5): the suggested alternative - inlining
+`= default` move members in the header - was verified and rejected:
+`KFileItem` is PIMPL (`QExplicitlySharedDataPointer<KFileItemPrivate>`),
+the private class is only complete in the .cpp, so consumers fail to
+compile the inline move ctor (`KFileItemPrivate` incomplete in
+qshareddata.h). `EXPORT_ALL_SYMBOLS` stays; the patch was regenerated
+(clean diff vs the tarball) and documents the PIMPL reason.
+
 ## kconfig (6.28.0)
 
 `0001-windows-trust-desktop-files.patch` (new, 2026-08-13): let

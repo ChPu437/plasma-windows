@@ -1,15 +1,16 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -1,4 +1,12 @@
+@@ -1,5 +1,14 @@
  cmake_minimum_required(VERSION 3.29)
  
++
 +# MSVC does not export move special members of dllexport classes (e.g.
 +# KFileItem(KFileItem&&) / operator=(KFileItem&&)), which breaks consumers
 +# such as Dolphin at link time. Export all symbols on Windows.
++# (PIMPL: the move members cannot be inlined in the header - the private
++# class is only complete in the .cpp - so exporting all symbols stays.)
 +if(WIN32)
 +    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 +endif()
-+
  set(KF_VERSION "6.28.0") # handled by release scripts
  set(KF_DEP_VERSION "6.28.0") # handled by release scripts
+ 
