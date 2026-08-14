@@ -112,11 +112,16 @@ if errorlevel 1 (
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem :pc_start_services - kactivitymanagerd + kded6 in the background
+rem :pc_start_services - kactivitymanagerd + kded6 + trayhost in the background
 rem ---------------------------------------------------------------------------
 :pc_start_services
 call :pc_resolve_root
 start "plasma-activitymanager" "%CRAFT_BIN%\kactivitymanagerd.exe"
 start "plasma-kded" "%CRAFT_BIN%\kded6.exe"
+rem Windows tray host (SNI bridge into the Plasma system tray); its log
+rem lands next to the exe (working dir), i.e. %CRAFT_BIN%\trayhost.log.
+if exist "%CRAFT_BIN%\trayhost.exe" (
+    start "plasma-trayhost" /D "%CRAFT_BIN%" "%CRAFT_BIN%\trayhost.exe"
+)
 timeout /t 3 /nobreak >nul
 exit /b 0

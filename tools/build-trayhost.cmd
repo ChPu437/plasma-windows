@@ -35,6 +35,11 @@ if errorlevel 1 (
     exit /b 1
 )
 echo built: %OUT%\trayhost.exe
+
+rem Publish into the CraftRoot runtime so update-vm-shared.ps1 picks it up
+rem and the session scripts can start it from %%CRAFT_BIN%%.
+copy /y "%OUT%\trayhost.exe" "%CRAFT%\bin\trayhost.exe" >nul
+echo published: %CRAFT%\bin\trayhost.exe
 exit /b 0
 
 

@@ -1,60 +1,62 @@
-@echo off
+ï»¿@echo off
 setlocal EnableExtensions
 rem ===========================================================================
-rem update-from-shared.cmd - ÔÚ VM ÖĞÔËĞĞ£º´Ó VMware ¹²ÏíÎÄ¼ş¼Ğ¸üĞÂ±¾»ú
-rem CraftRoot ²¢ÖØÆô Plasma shell
+rem update-from-shared.cmd - åœ¨ VM ä¸­è¿è¡Œï¼šä» VMware å…±äº«æ–‡ä»¶å¤¹æ›´æ–°æœ¬æœº
+rem CraftRoot å¹¶é‡å¯ Plasma shell
 rem
-rem ÎªÊ²Ã´ĞèÒª±¾½Å±¾£ºVM ÏÖÔÚÒÔ Plasma ×÷ÎªÄ¬ÈÏ shell ÔËĞĞ£¬plasmashell /
-rem kactivitymanagerd / kded6 / dbus-daemon / krunner µÈ½ø³Ì³ÖĞøÕ¼ÓÃ¾É°æ
-rem DLL£¬Ö±½Ó¸´ÖÆ»áÊ§°Ü¡£±¾½Å±¾ÏÈ³¹µ×Í£Ö¹ÕâĞ©·şÎñ£¨½â³ıÕ¼ÓÃ£©£¬ÔÙ¾µÏñ
-rem ¸´ÖÆ¹²ÏíÎÄ¼ş¼ĞµÄĞÂ°æ±¾£¬×îºóÖØÆô Plasma »á»°¡£
+rem ä¸ºä»€ä¹ˆéœ€è¦æœ¬è„šæœ¬ï¼šVM ç°åœ¨ä»¥ Plasma ä½œä¸ºé»˜è®¤ shell è¿è¡Œï¼Œplasmashell /
+rem kactivitymanagerd / kded6 / dbus-daemon / krunner ç­‰è¿›ç¨‹æŒç»­å ç”¨æ—§ç‰ˆ
+rem DLLï¼Œç›´æ¥å¤åˆ¶ä¼šå¤±è´¥ã€‚æœ¬è„šæœ¬å…ˆå½»åº•åœæ­¢è¿™äº›æœåŠ¡ï¼ˆè§£é™¤å ç”¨ï¼‰ï¼Œå†é•œåƒ
+rem å¤åˆ¶å…±äº«æ–‡ä»¶å¤¹çš„æ–°ç‰ˆæœ¬ï¼Œæœ€åé‡å¯ Plasma ä¼šè¯ã€‚
 rem
-rem ÓÃ·¨£¨ÔÚ VM ÖĞ£¬cmd ´°¿Ú»òË«»÷£©:
+rem ç”¨æ³•ï¼ˆåœ¨ VM ä¸­ï¼Œcmd çª—å£æˆ–åŒå‡»ï¼‰:
 rem   \\vmware-host\Shared Folders\shared\plasma-vm\update-from-shared.cmd
 rem
-rem ¸´ÖÆÍê³Éºó½Å±¾Ò²»á°Ñ×Ô¼º·Å½ø CraftRoot£¬ÏÂ´Î¿ÉÖ±½ÓÔËĞĞ
+rem å¤åˆ¶å®Œæˆåè„šæœ¬ä¹Ÿä¼šæŠŠè‡ªå·±æ”¾è¿› CraftRootï¼Œä¸‹æ¬¡å¯ç›´æ¥è¿è¡Œ
 rem   D:\Projects\CraftRoot\update-from-shared.cmd
 rem ===========================================================================
 
 set "SHARE=\\vmware-host\Shared Folders\shared\plasma-vm"
 set "CRAFT=D:\Projects\CraftRoot"
 
-rem ---------- 0. ¼ì²é¹²Ïí¿ÉÓÃ ----------
+rem ---------- 0. æ£€æŸ¥å…±äº«å¯ç”¨ ----------
 if not exist "%SHARE%\bin\plasmashell.exe" (
     echo.
-    echo [´íÎó] ¹²ÏíÎÄ¼ş¼Ğ²»¿ÉÓÃ: %SHARE%
-    echo ÇëÈ·ÈÏ VMware ¹²ÏíÎÄ¼ş¼ĞÒÑÆôÓÃ£¨VM ÉèÖÃ - Options - Shared Folders£©
-    echo ÇÒ¹²ÏíÄ¿Â¼ÃûÎª shared£¬×ÓÄ¿Â¼Îª plasma-vm¡£
+    echo [é”™è¯¯] å…±äº«æ–‡ä»¶å¤¹ä¸å¯ç”¨: %SHARE%
+    echo è¯·ç¡®è®¤ VMware å…±äº«æ–‡ä»¶å¤¹å·²å¯ç”¨ï¼ˆVM è®¾ç½® - Options - Shared Foldersï¼‰
+    echo ä¸”å…±äº«ç›®å½•åä¸º sharedï¼Œå­ç›®å½•ä¸º plasma-vmã€‚
     echo.
     pause
     exit /b 1
 )
 
-rem ---------- 1. Í£Ö¹ Plasma ·şÎñ£¨½â³ıÎÄ¼şÕ¼ÓÃ£© ----------
+rem ---------- 1. åœæ­¢ Plasma æœåŠ¡ï¼ˆè§£é™¤æ–‡ä»¶å ç”¨ï¼‰ ----------
 echo.
-echo === [1/3] Í£Ö¹ Plasma ·şÎñ£¨½â³ıÎÄ¼şÕ¼ÓÃ£©===
+echo === [1/3] åœæ­¢ Plasma æœåŠ¡ï¼ˆè§£é™¤æ–‡ä»¶å ç”¨ï¼‰===
 taskkill /f /im plasmashell.exe       2>nul
 taskkill /f /im kactivitymanagerd.exe 2>nul
 taskkill /f /im kded6.exe             2>nul
+taskkill /f /im trayhost.exe           2>nul
 taskkill /f /im dbus-daemon.exe       2>nul
 taskkill /f /im krunner.exe           2>nul
 taskkill /f /im kglobalacceld.exe     2>nul
 taskkill /f /im klipper.exe           2>nul
 taskkill /f /im kbuildsycoca6.exe     2>nul
 timeout /t 3 /nobreak >nul
-echo ÒÑÍ£Ö¹£¨×ÀÃæ»áÔİÊ±ÏûÊ§£¬ÊôÕı³£ÏÖÏó£©¡£
+echo å·²åœæ­¢ï¼ˆæ¡Œé¢ä¼šæš‚æ—¶æ¶ˆå¤±ï¼Œå±æ­£å¸¸ç°è±¡ï¼‰ã€‚
 
-rem ---------- 2. ¾µÏñ¸´ÖÆ£¨Õ¼ÓÃÊ§°ÜÊ±ÖØÊÔÒ»´Î£© ----------
+rem ---------- 2. é•œåƒå¤åˆ¶ï¼ˆå ç”¨å¤±è´¥æ—¶é‡è¯•ä¸€æ¬¡ï¼‰ ----------
 echo.
-echo === [2/3] ¸´ÖÆ %SHARE% -^> %CRAFT% ===
+echo === [2/3] å¤åˆ¶ %SHARE% -^> %CRAFT% ===
 :retry_copy
 robocopy "%SHARE%" "%CRAFT%" /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP
 if errorlevel 8 (
     echo.
-    echo [¾¯¸æ] ¸´ÖÆÓöµ½±»Õ¼ÓÃµÄÎÄ¼ş£¬ÔÙ´ÎÍ£Ö¹ Plasma ½ø³ÌºóÖØÊÔ...
+    echo [è­¦å‘Š] å¤åˆ¶é‡åˆ°è¢«å ç”¨çš„æ–‡ä»¶ï¼Œå†æ¬¡åœæ­¢ Plasma è¿›ç¨‹åé‡è¯•...
     taskkill /f /im plasmashell.exe       2>nul
     taskkill /f /im kactivitymanagerd.exe 2>nul
     taskkill /f /im kded6.exe             2>nul
+taskkill /f /im trayhost.exe           2>nul
     taskkill /f /im dbus-daemon.exe       2>nul
     taskkill /f /im krunner.exe           2>nul
     taskkill /f /im kglobalacceld.exe     2>nul
@@ -65,15 +67,15 @@ if errorlevel 8 (
 )
 if errorlevel 8 (
     echo.
-    echo [´íÎó] ¸´ÖÆÈÔÊ§°Ü£¨robocopy ÍË³öÂë %errorlevel%£©¡£
-    echo ÈÔÓĞ½ø³ÌÕ¼ÓÃ CraftRoot ÎÄ¼ş¡£ÇëÓÃÈÎÎñ¹ÜÀíÆ÷¼ì²é²ĞÁô½ø³Ì
-    echo £¨plasmashell / kded6 / krunner / dbus µÈ£©²¢½áÊøËüÃÇºóÖØÊÔ¡£
+    echo [é”™è¯¯] å¤åˆ¶ä»å¤±è´¥ï¼ˆrobocopy é€€å‡ºç  %errorlevel%ï¼‰ã€‚
+    echo ä»æœ‰è¿›ç¨‹å ç”¨ CraftRoot æ–‡ä»¶ã€‚è¯·ç”¨ä»»åŠ¡ç®¡ç†å™¨æ£€æŸ¥æ®‹ç•™è¿›ç¨‹
+    echo ï¼ˆplasmashell / kded6 / krunner / dbus ç­‰ï¼‰å¹¶ç»“æŸå®ƒä»¬åé‡è¯•ã€‚
     pause
     exit /b 1
 )
-echo ¸´ÖÆÍê³É¡£
+echo å¤åˆ¶å®Œæˆã€‚
 
-rem ---------- 3. ÖØÆô Plasma shell ----------
+rem ---------- 3. é‡å¯ Plasma shell ----------
 echo.
-echo === [3/3] ÖØÆô Plasma shell ===
+echo === [3/3] é‡å¯ Plasma shell ===
 call "%CRAFT%\session-shell.cmd"
