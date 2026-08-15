@@ -1,24 +1,25 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-chcp 936 >nul
-title Plasma Shell 会话管理 (VM)
+title Plasma Shell Session Manager (VM)
 
 rem ===========================================================================
-rem plasma-shell.cmd - 交互式 Plasma 会话管理（在测试 VM 中运行）
+rem plasma-shell.cmd - interactive Plasma session manager, run inside the VM.
 rem
-rem 用法: 双击或在 cmd 中运行本脚本，按菜单操作。
+rem Usage: double-click or run from a cmd window. Menu:
 rem
-rem   1. 临时启动 Plasma 会话（不修改任何系统配置）
-rem   2. 设置为默认 Shell（备份当前值，下次登录生效，可随时回滚）
-rem   3. 恢复 Explorer 为默认 Shell（回滚）
-rem   4. 查看当前状态
-rem   0. 退出
+rem   1. Start a temporary Plasma session (no system changes)
+rem   2. Set Plasma as the default shell (backup first, effective on next
+rem      login; restore via option 3)
+rem   3. Restore Explorer as the default shell (rollback)
+rem   4. Show current status
+rem   0. Exit
 rem
-rem 只修改当前用户的 HKCU\...\Winlogon\Shell 值，不碰系统二进制和 Winlogon。
-rem 环境/镜像/菜单/dbus/ksycoca 逻辑在 plasma-common.cmd（同目录）。
+rem Only touches the current user's HKCU\...\Winlogon\Shell value - never
+rem system-wide settings or Winlogon itself. The bus / services / menu /
+rem dbus / ksycoca logic lives in plasma-common.cmd in the same directory.
 rem ===========================================================================
 
-rem -------- 定位 CraftRoot（脚本所在目录）--------
+rem -------- locate CraftRoot (this script lives next to bin/) --------
 set "CRAFT_ROOT=%~dp0"
 if "%CRAFT_ROOT:~-1%"=="\" set "CRAFT_ROOT=%CRAFT_ROOT:~0,-1%"
 set "CRAFT_BIN=%CRAFT_ROOT%\bin"
@@ -27,11 +28,12 @@ set "BACKUP_DIR=%USERPROFILE%\.plasma-windows"
 set "SHELL_BACKUP=%BACKUP_DIR%\shell-backup.txt"
 set "SESSION_LAUNCHER=%CRAFT_ROOT%\session-shell.cmd"
 
-rem -------- 检查 plasmashell --------
+rem -------- sanity: plasmashell present --------
 if not exist "%CRAFT_BIN%\plasmashell.exe" (
     echo.
-    echo [错误] 未找到 %CRAFT_BIN%\plasmashell.exe
-    echo        请确认本脚本位于 CraftRoot 目录中（与 bin 目录平级）。
+    echo [ERROR] %CRAFT_BIN%\plasmashell.exe not found.
+    echo         Make sure this script sits inside the CraftRoot directory,
+    echo         next to the bin folder.
     pause
     exit /b 1
 )
@@ -39,39 +41,39 @@ if not exist "%CRAFT_BIN%\plasmashell.exe" (
 goto :menu
 
 rem ---------------------------------------------------------------------------
-rem :env_setup - 环境变量 + 镜像 KDE 数据到 %LOCALAPPDATA%
+rem :env_setup - session env + mirror KDE data into %LOCALAPPDATA%
 rem ---------------------------------------------------------------------------
 :env_setup
 call "%~dp0plasma-common.cmd" :pc_setup_env
-echo [准备] 镜像 KDE 包数据到 %LOCALAPPDATA% ...
+echo [PREP] Mirroring KDE runtime data to %LOCALAPPDATA% ...
 call "%~dp0plasma-common.cmd" :pc_mirror_data
 call "%~dp0plasma-common.cmd" :pc_write_menu
-echo [准备] 重建 ksycoca 服务数据库 ...
+echo [PREP] Rebuilding ksycoca database ...
 call "%~dp0plasma-common.cmd" :pc_rebuild_ksycoca
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem :start_session - 启动 dbus + 服务 + plasmashell（前台，临时会话）
+rem :start_session - dbus + services + plasmashell in the foreground
 rem ---------------------------------------------------------------------------
 :start_session
 echo.
-echo [会话] 启动会话总线 ...
+echo [SESSION] Starting session bus ...
 call "%~dp0plasma-common.cmd" :pc_start_bus
-echo [会话] 启动 kactivitymanagerd / kded6 ...
+echo [SESSION] Starting kactivitymanagerd / kded6 ...
 call "%~dp0plasma-common.cmd" :pc_start_services
-echo [会话] 启动 plasmashell（关闭它即结束临时会话）...
+echo [SESSION] Starting plasmashell (close this window to end the session)...
 "%CRAFT_BIN%\plasmashell.exe"
-echo [会话] plasmashell 已退出，代码 %errorlevel%
+echo [SESSION] plasmashell exited with code %errorlevel%
 echo.
 pause
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem :install - 备份当前 shell 并设为默认（下次登录生效）
+rem :install - set Plasma as the default shell for this user
 rem ---------------------------------------------------------------------------
 :install
 echo.
-echo [安装] 将当前用户默认 Shell 切换为 Plasma ...
+echo [INSTALL] Switching the current user's default Shell to Plasma ...
 if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
 
 set "CURRENT_SHELL="
@@ -80,24 +82,24 @@ for /f "usebackq skip=2 tokens=1,* delims= " %%A in (`reg query "%SHELL_KEY%" /v
 )
 if defined CURRENT_SHELL (
     > "%SHELL_BACKUP%" echo %CURRENT_SHELL%
-    echo        已备份当前 Shell: %CURRENT_SHELL%
+    echo           Backed up current Shell: %CURRENT_SHELL%
 ) else (
     > "%SHELL_BACKUP%" echo explorer.exe
-    echo        未找到原 Shell 值，回滚时将恢复 explorer.exe
+    echo           No previous Shell value found - restore will use explorer.exe
 )
 
 reg add "%SHELL_KEY%" /v Shell /t REG_SZ /d "cmd.exe /c \"%SESSION_LAUNCHER%\"" /f >nul
 if errorlevel 1 (
-    echo [错误] 写注册表失败。
+    echo [ERROR] Failed to write the registry value.
     pause
     exit /b 1
 )
-echo        已设置: cmd.exe /c "%SESSION_LAUNCHER%"
-echo        下次注销/重启登录后生效。
+echo           Installed: cmd.exe /c "%SESSION_LAUNCHER%"
+echo           Effective at the next logon.
 echo.
-echo        恢复方法: 重新运行本脚本，选择 [3]。
+echo           To roll back: run this script and pick [3].
 echo.
-set /p GO=是否现在临时启动 Plasma 测试？（Y/N）:
+set /p GO=Start a temporary Plasma session now? (Y/N):
 if /i "%GO%"=="Y" (
     call :env_setup
     call :start_session
@@ -106,11 +108,11 @@ pause
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem :restore - 回滚到备份的 shell 值
+rem :restore - restore the backed-up shell value
 rem ---------------------------------------------------------------------------
 :restore
 echo.
-echo [恢复] 还原默认 Shell ...
+echo [RESTORE] Restoring the default Shell ...
 set "OLD_SHELL=explorer.exe"
 if exist "%SHELL_BACKUP%" (
     set /p OLD_SHELL=<"%SHELL_BACKUP%"
@@ -118,56 +120,56 @@ if exist "%SHELL_BACKUP%" (
 )
 reg add "%SHELL_KEY%" /v Shell /t REG_SZ /d "%OLD_SHELL%" /f >nul
 if errorlevel 1 (
-    echo [错误] 写注册表失败。
+    echo [ERROR] Failed to write the registry value.
     pause
     exit /b 1
 )
-echo        已恢复: %OLD_SHELL%
-echo        下次注销/重启登录后生效。
+echo           Restored: %OLD_SHELL%
+echo           Effective at the next logon.
 pause
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem :status - 查看当前 shell 配置和备份
+rem :status - show the current shell setting and backup
 rem ---------------------------------------------------------------------------
 :status
 echo.
-echo [状态] 注册表键: %SHELL_KEY%
+echo [STATUS] Registry key: %SHELL_KEY%
 echo.
-echo        当前 Shell 值:
+echo           Current Shell value:
 reg query "%SHELL_KEY%" /v Shell 2>nul
-if errorlevel 1 echo            （未设置 - 使用系统默认 explorer.exe）
+if errorlevel 1 echo           (not set - using the system default explorer.exe)
 echo.
 if exist "%SHELL_BACKUP%" (
-    echo        备份文件: %SHELL_BACKUP%
+    echo           Backup file: %SHELL_BACKUP%
     set /p PREV=<"%SHELL_BACKUP%"
-    echo        备份值  : !PREV!
+    echo           Backed-up value: !PREV!
 ) else (
-    echo        备份文件: %SHELL_BACKUP%  （尚无备份）
+    echo           Backup file: %SHELL_BACKUP%  (no backup yet)
 )
 echo.
 pause
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem :menu - 主菜单
+rem :menu - main menu
 rem ---------------------------------------------------------------------------
 :menu
 cls
 echo.
 echo  ============================================
-echo      Plasma Shell 会话管理（测试 VM）
+echo      Plasma Shell Session Manager (VM)
 echo  ============================================
 echo.
 echo    CraftRoot: %CRAFT_ROOT%
 echo.
-echo    [1] 临时启动 Plasma 会话（不修改配置）
-echo    [2] 设置为默认 Shell（备份后，下次登录生效）
-echo    [3] 恢复 Explorer 为默认 Shell（回滚）
-echo    [4] 查看当前状态
-echo    [0] 退出
+echo    [1] Start a temporary Plasma session (no config changes)
+echo    [2] Set Plasma as the default shell (backup, next logon)
+echo    [3] Restore Explorer as the default shell (rollback)
+echo    [4] Show current status
+echo    [0] Exit
 echo.
-set /p CHOICE=请选择:
+set /p CHOICE=Your choice:
 
 if "%CHOICE%"=="1" (
     call :env_setup
@@ -182,6 +184,6 @@ if "%CHOICE%"=="0" (
     exit /b 0
 )
 echo.
-echo  无效选择，请重新输入。
+echo  Invalid choice - please try again.
 timeout /t 2 /nobreak >nul
 goto :menu
