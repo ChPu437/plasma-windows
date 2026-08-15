@@ -268,7 +268,7 @@ index b4d8a99..b511d27 100644
      if (!m_visualParent || !m_visualParent->window()) {
          qmlWarning(q) << "Exposed with no visual parent. Window positioning broken.";
          return;
-@@ -182,6 +201,13 @@ void PopupPlasmaWindowPrivate::updatePosition()
+@@ -182,6 +201,81 @@ void PopupPlasmaWindowPrivate::updatePosition()
      } else if (KWindowSystem::isPlatformWayland()) {
          updatePositionWayland(popupPosition.topLeft());
      }
@@ -276,9 +276,82 @@ index b4d8a99..b511d27 100644
 +    else {
 +        // Windows: upstream only positions popups on X11/Wayland; without a
 +        // branch here the popup would stay at the OS default (centered).
-+        updatePositionX11(popupPosition.topLeft());
++        // Hover popups (tooltips): on X11/Wayland the visual gap between the
++        // tooltip and the panel comes from the shadow KWin paints around the
++        // window; Windows has no compositor shadow, so tooltips sat flush
++        // against - or, anchored to buttons inside the panel, on top of -
++        // the panel. Push them out of the panel window. Click popups
++        // (kickoff, tray, volume) intentionally stay flush with the panel
++        // edge - the flat border there is upstream Plasma behavior.
++        QPoint winPos = popupPosition.topLeft();
++        // Hover popups are ToolTipDialog instances (the Qt::ToolTip window
++        // flag is not reliably set on the QWindow), so detect them by class.
++        const bool isHoverPopup = q->metaObject()->className() == QByteArrayLiteral("ToolTipDialog");
++        if (isHoverPopup) {
++            if (QWindow *anchorWindow = m_visualParent->window()) {
++                const QRect panelRect = anchorWindow->geometry();
++                const QRect popRect = popupPosition;
++                const int gap = 8;
++                const bool overlapsOrTouches = popRect.intersects(panelRect)
++                    || popRect.adjusted(-gap, -gap, gap, gap).intersects(panelRect);
++                if (overlapsOrTouches) {
++                    // Decide the push direction by where the tooltip sits
++                    // relative to the panel, not by center distance (a
++                    // tooltip hanging off the top of a vertical panel has
++                    // its center closer to the panel's top edge than to its
++                    // left edge, which would wrongly push it above the
++                    // screen).
++                    const bool popLeft = popRect.right() < panelRect.left();
++                    const bool popRight = popRect.left() > panelRect.right();
++                    const bool popAbove = popRect.bottom() < panelRect.top();
++                    const bool popBelow = popRect.top() > panelRect.bottom();
++                    if (popLeft || popRight) {
++                        winPos.rx() = popLeft
++                            ? panelRect.left() - gap - popRect.width()
++                            : panelRect.right() + gap;
++                    } else if (popAbove || popBelow) {
++                        winPos.ry() = popAbove
++                            ? panelRect.top() - gap - popRect.height()
++                            : panelRect.bottom() + gap;
++                    } else {
++                        // The tooltip overlaps the panel itself: push it
++                        // out on the side its center is nearest to.
++                        const QPoint popCenter = popRect.center();
++                        const int dLeft = qAbs(popCenter.x() - panelRect.left());
++                        const int dRight = qAbs(popCenter.x() - panelRect.right());
++                        const int dTop = qAbs(popCenter.y() - panelRect.top());
++                        const int dBottom = qAbs(popCenter.y() - panelRect.bottom());
++                        const int dMin = qMin(qMin(dLeft, dRight), qMin(dTop, dBottom));
++                        if (dMin == dLeft || dMin == dRight) {
++                            if (dLeft <= dRight) {
++                                winPos.rx() = panelRect.left() - gap - popRect.width();
++                            } else {
++                                winPos.rx() = panelRect.right() + gap;
++                            }
++                        } else {
++                            if (dTop <= dBottom) {
++                                winPos.ry() = panelRect.top() - gap - popRect.height();
++                            } else {
++                                winPos.ry() = panelRect.bottom() + gap;
++                            }
++                        }
++                    }
++                    // Keep the tooltip on screen (the pushed position can
++                    // leave it on a thin panel strip or off the monitor).
++                    QScreen *screen = QGuiApplication::screenAt(popRect.center());
++                    if (screen) {
++                        const QRect sg = screen->geometry();
++                        winPos.rx() = qBound(sg.left(), winPos.x(), sg.right() - popRect.width());
++                        winPos.ry() = qBound(sg.top(), winPos.y(), sg.bottom() - popRect.height());
++                    }
++                }
++            }
++        }
++        updatePositionX11(winPos);
 +    }
 +#endif
  
      updateBorders(popupPosition);
  }
+
+

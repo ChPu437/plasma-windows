@@ -37,3 +37,39 @@ explorer.exe as the shell, with no Explorer taskbar/tray.
   entries from the shell; ctfmon is managed by the system.
 - If the IME is missing entirely after logon (no Preload key), running
   `ctfmon.exe` once (or a relogin) usually fixes it.
+
+## Open issue: candidate window / number-key selection (2026-08-15)
+
+**Status: deferred - direction chosen, not implemented.**
+
+On Windows 10 the IME candidate window is hosted by `TextInputHost.exe`
+(Client.CBS package, AppId "InputApp"), which is only activated from an
+explorer-based input platform session. In a clean plasma-shell logon
+(no explorer) it never starts:
+
+- Direct `CreateProcess` of the SystemApps exe exits immediately.
+- `IApplicationActivationManager::ActivateApplication` returns
+  `0x87b20c15` (activation framework refuses; deps are all present).
+- `ms-inputapp:` protocol activation fails with the same error.
+- Cairo Desktop has the same problem (language bar / IME UI issues
+  #212 open since 2018, #237 closed as duplicate) - it is a Win10
+  system limitation, not a shell bug.
+
+Consequences in a clean plasma session: the Microsoft IME candidate
+window never appears, number-key selection stops working (only Space
+commits the default candidate), and Win+Space switching is unreliable.
+Even with TextInputHost running (explorer had logged in before), the
+candidate window could be covered (z-order suspicion vs the plasma
+desktop window, titlebar-research.md 2026-08-14, unfixed).
+
+**Chosen direction (user, 2026-08-15):** build an independent frontend
+for the Windows IME instead of relying on TextInputHost - i.e. talk to
+TSF ourselves (a TSF text service / UI element sink, or a lightweight
+IMM32-style composition window) and render the candidate list in our
+own window. If that proves too complex, mitigate with a third-party
+IME (Sogou etc. draw their candidate windows in-process and do not
+depend on TextInputHost).
+
+**Already fixed alongside:** imewin indicator read the shell thread's
+HKL (stuck EN/中 display) - now samples the remembered user window
+(imecontroller.cpp).

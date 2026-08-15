@@ -399,6 +399,21 @@ the widget explorer).
   backgroundHints) was dropped by the KWindowEffects backend and never
   retried - popups stayed semi-transparent instead of blurred.
 
+2026-08-15 update (craft-rebuild verified):
+
+* `updatePosition()` `Q_OS_WIN` branch now gives **hover popups
+  (tooltips)** an 8 px gap from the panel window. On X11/Wayland the
+  visual gap comes from the KWin compositor shadow; Windows has none,
+  so tooltips sat flush against - or, anchored to buttons inside the
+  panel, on top of - the panel. Hover popups are detected by class
+  (`ToolTipDialog`; the Qt::ToolTip window flag is not set reliably).
+  The push direction is decided by where the tooltip sits relative to
+  the panel (left/right/top/bottom neighbor, center-distance fallback
+  for overlap), clamped to the screen. Click popups (kickoff, tray,
+  volume) intentionally stay flush with the panel edge - the flat
+  border there is upstream Plasma behavior, and the `syncBorders`
+  logic keeps it that way.
+
 ## libplasma (6.7.4) - 0004 window thumbnail
 
 `0004-windows-window-thumbnail.patch` - `WindowThumbnail` gets a

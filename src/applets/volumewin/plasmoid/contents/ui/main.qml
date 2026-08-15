@@ -37,30 +37,27 @@ PlasmoidItem {
 
     fullRepresentation: Item {
         Layout.preferredWidth: Kirigami.Units.gridUnit * 14
-        Layout.preferredHeight: Kirigami.Units.gridUnit * 5
+        Layout.preferredHeight: Kirigami.Units.gridUnit * 3
 
-        ColumnLayout {
+        RowLayout {
             anchors.fill: parent
             anchors.margins: Kirigami.Units.largeSpacing
 
-            RowLayout {
-                PC3.ToolButton {
-                    icon.name: vc.muted ? "audio-volume-muted" : "audio-volume-high"
-                    onClicked: vc.toggleMuted()
-                }
-                PC3.Slider {
-                    id: slider
-                    Layout.fillWidth: true
-                    from: 0
-                    to: 100
-                    value: vc.volume * 100
-                    onMoved: vc.volume = value / 100
-                }
+            PC3.ToolButton {
+                icon.name: vc.muted ? "audio-volume-muted" : "audio-volume-high"
+                onClicked: vc.toggleMuted()
+            }
+            PC3.Slider {
+                id: slider
+                Layout.fillWidth: true
+                from: 0
+                to: 100
+                value: vc.volume * 100
+                onMoved: vc.volume = value / 100
             }
             PC3.Label {
                 text: i18n("%1%", Math.round(slider.value))
                 horizontalAlignment: Text.AlignRight
-                Layout.fillWidth: true
             }
         }
     }
