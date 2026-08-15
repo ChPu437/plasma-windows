@@ -40,6 +40,14 @@ if errorlevel 1 (
 
 copy /y "%OUT%\startmenuplugin.dll" "%CRAFT%\qml\org\kde\plasma\windowsmenu\" >nul
 copy /y "%SRC%\qmldir" "%CRAFT%\qml\org\kde\plasma\windowsmenu\" >nul
+
+rem The dev shell runs plasmashell from the VM-shared prefix
+rem (D:\Documents\Shared\plasma-vm) - its QML imports come from
+rem Shared\qml, so mirror the module there too.
+if exist "D:\Documents\Shared\plasma-vm\qml\org\kde\plasma\windowsmenu" (
+    copy /y "%OUT%\startmenuplugin.dll" "D:\Documents\Shared\plasma-vm\qml\org\kde\plasma\windowsmenu\" >nul
+    copy /y "%SRC%\qmldir" "D:\Documents\Shared\plasma-vm\qml\org\kde\plasma\windowsmenu\" >nul
+)
 echo installed: qml\org\kde\plasma\windowsmenu\
 exit /b 0
 

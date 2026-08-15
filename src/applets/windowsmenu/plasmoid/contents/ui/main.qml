@@ -1,4 +1,4 @@
-﻿/*
+/*
     SPDX-FileCopyrightText: 2026 Plasma Windows contributors
     SPDX-License-Identifier: LGPL-2.1-only OR LGPL-3.0-only OR LicenseRef-KDE-Accepted-LGPL
 */
@@ -207,7 +207,7 @@ PlasmoidItem {
 
             QQC2.MenuItem {
                 text: i18n("Shut Down")
-                icon.source: "system-shutdown-symbolic"
+                icon.name: "system-shutdown-symbolic"
                 enabled: power.canShutdown
                 onClicked: {
                     root.expanded = false
@@ -216,7 +216,7 @@ PlasmoidItem {
             }
             QQC2.MenuItem {
                 text: i18n("Restart")
-                icon.source: "system-reboot-symbolic"
+                icon.name: "system-reboot-symbolic"
                 enabled: power.canReboot
                 onClicked: {
                     root.expanded = false
@@ -225,7 +225,7 @@ PlasmoidItem {
             }
             QQC2.MenuItem {
                 text: i18n("Sleep")
-                icon.source: "system-suspend-symbolic"
+                icon.name: "system-suspend-symbolic"
                 enabled: power.canSuspend
                 onClicked: {
                     root.expanded = false
@@ -234,7 +234,7 @@ PlasmoidItem {
             }
             QQC2.MenuItem {
                 text: i18n("Hibernate")
-                icon.source: "system-suspend-hibernate-symbolic"
+                icon.name: "system-suspend-hibernate-symbolic"
                 enabled: power.canHibernate
                 onClicked: {
                     root.expanded = false
@@ -243,7 +243,7 @@ PlasmoidItem {
             }
             QQC2.MenuItem {
                 text: i18n("Lock Screen")
-                icon.source: "system-lock-screen-symbolic"
+                icon.name: "system-lock-screen-symbolic"
                 enabled: power.canLock
                 onClicked: {
                     root.expanded = false
