@@ -74,10 +74,12 @@ public:
         tip.subTitle = QString();
         return QDBusVariant(QVariant::fromValue(tip));
     }
-    /* No menu: return an empty path per the SNI spec. A fake path like
-       /NO_DBUSMENU makes clients try to connect to a DBus object that
-       does not exist (silent errors in the plasma tray). */
-    QDBusObjectPath menu() const { return QDBusObjectPath(); }
+    /* No menu: return "/" (a valid, empty object path). An invalid path
+       (QDBusObjectPath() default) hangs QtDBus while serializing the
+       GetAll reply - the a{sv} message never arrives and the panel times
+       out, so tray icons fail to load. Clients that connect to "/" get a
+       silent "no object" error, which is fine. */
+    QDBusObjectPath menu() const { return QDBusObjectPath(QStringLiteral("/")); }
     int windowId() const { return 0; }
     bool itemIsMenu() const { return false; }
 

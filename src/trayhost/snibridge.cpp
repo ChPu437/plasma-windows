@@ -9,6 +9,7 @@
 #include <QDebug>
 #include <QMetaType>
 #include <QtDBus/qdbusmetatype.h>
+#include <QTimer>
 #include <QVariant>
 
 void logLine(const QString &line);
@@ -122,16 +123,15 @@ void Snibridge::setIcon(HICON hIcon)
         const int h = bmp.bmHeight;
         logLine(QStringLiteral("  setIcon: hIcon=%1 size=%2x%3").arg(reinterpret_cast<quintptr>(hIcon), 0, 16).arg(w).arg(h));
         if (w > 0 && h > 0) {
-            // Offer 16 and 24 px variants. The plasma panel on this setup
-            // is 30 px thick (vertical); a 32 px icon makes the panel's
-            // layered-window dirty rect exceed the window and
-            // UpdateLayeredWindowIndirect fails - the tray icons never
-            // get painted. Sized variants let the panel pick a fitting
-            // icon (<=24) instead of forcing 32.
-            for (int dw : {24, 16}) {
-                if (dw > w) {
-                    continue;
-                }
+            // Offer a single 24 px variant. A 32 px icon made the panel
+            // layered-window dirty rect exceed the 30 px vertical panel
+            // and UpdateLayeredWindowIndirect failed - icons never
+            // painted. Small source icons (16x16 hIcons) must still be
+            // rendered: DrawIconEx scales them up to the target size
+            // instead of skipping them (an empty pixmap list made those
+            // items invisible in the tray).
+            const int dw = 24;
+            {
                 BITMAPINFO bmi{};
                 bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
                 bmi.bmiHeader.biWidth = dw;
@@ -176,6 +176,12 @@ void Snibridge::setIcon(HICON hIcon)
     }
     DestroyIcon(copy);
     Q_EMIT iconChanged();
+    // The real "most icons never painted" bug was the invalid (empty)
+    // Menu object path hanging the GetAll reply (see GetAll below).
+    // Keep a delayed re-emit as a defensive retry: if the panel's async
+    // property fetch ever races or times out, the icon gets re-read.
+    QTimer::singleShot(1500, this, [this]() { Q_EMIT iconChanged(); });
+    QTimer::singleShot(4000, this, [this]() { Q_EMIT iconChanged(); });
 }
 
 void Snibridge::setTitle(const QString &title)
@@ -365,7 +371,11 @@ QMap<QString, QVariant> SnibridgeProperties::GetAll(const QString &iface) const
     result.insert(QStringLiteral("Status"), m_item->status());
     result.insert(QStringLiteral("IconName"), m_item->iconName());
     result.insert(QStringLiteral("IconPixmap"), QVariant::fromValue(m_item->iconPixmap()));
-    result.insert(QStringLiteral("ToolTip"), QVariant::fromValue(m_item->toolTip()));
+    // Menu must be a *valid* object path in the a{sv} reply: an invalid
+    // (empty) QDBusObjectPath makes QtDBus hang while serializing the
+    // GetAll reply - the message never arrives and the panel times out,
+    // so most tray icons fail to load. A valid-but-empty "/" is what
+    // the SNI spec expects when there is no menu.
     result.insert(QStringLiteral("Menu"), QVariant::fromValue(m_item->menu()));
     result.insert(QStringLiteral("WindowId"), m_item->windowId());
     result.insert(QStringLiteral("ItemIsMenu"), m_item->itemIsMenu());
