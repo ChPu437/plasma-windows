@@ -459,8 +459,10 @@ void WindowsTrayHost::unregisterBridge(quint64 key)
     // then unregister the service name, then destroy the bridge AFTER the
     // event queue drained - in-flight DBus calls are queued as
     // QDBusCallDeliveryEvent and dispatching one to a destroyed adaptor
-    // crashed with a vtable null deref in Qt6Core (0xf2ec2) under
-    // DELETE/ADD churn. Connection close is deferred the same way.
+    // crashed with a vtable null deref in Qt6Core (0xf2ec2 / 0xf754d).
+    // The 600ms wait was not enough when the main thread was busy (the
+    // queued events had not been dispatched yet), so a crash reappeared
+    // even with no churn. 3000ms gives the queue ample time to drain.
     const QString serviceName = bridge->serviceName();
     const QString bridgeId = bridge->id();
     QDBusConnection conn = bridge->connection();
@@ -468,7 +470,7 @@ void WindowsTrayHost::unregisterBridge(quint64 key)
         conn.unregisterObject(QStringLiteral("/StatusNotifierItem"));
         conn.unregisterService(serviceName);
     }
-    QTimer::singleShot(600, this, [bridge]() { delete bridge; });
+    QTimer::singleShot(3000, this, [bridge]() { delete bridge; });
     QTimer::singleShot(100, this, [serviceName]() {
         QDBusConnection::disconnectFromBus(serviceName);
     });

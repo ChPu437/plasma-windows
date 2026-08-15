@@ -122,43 +122,54 @@ void Snibridge::setIcon(HICON hIcon)
         const int h = bmp.bmHeight;
         logLine(QStringLiteral("  setIcon: hIcon=%1 size=%2x%3").arg(reinterpret_cast<quintptr>(hIcon), 0, 16).arg(w).arg(h));
         if (w > 0 && h > 0) {
-            BITMAPINFO bmi{};
-            bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-            bmi.bmiHeader.biWidth = w;
-            bmi.bmiHeader.biHeight = -h; // top-down
-            bmi.bmiHeader.biPlanes = 1;
-            bmi.bmiHeader.biBitCount = 32;
-            bmi.bmiHeader.biCompression = BI_RGB;
-
-            void *bits = nullptr;
-            HDC screen = GetDC(nullptr);
-            HDC dc = CreateCompatibleDC(screen);
-            HBITMAP dib = CreateDIBSection(dc, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
-            if (dib) {
-                HGDIOBJ old = SelectObject(dc, dib);
-                memset(bits, 0, size_t(w) * h * 4);
-                DrawIconEx(dc, 0, 0, copy, w, h, 0, nullptr, DI_NORMAL);
-
-                DBusImageStruct img;
-                img.width = w;
-                img.height = h;
-                img.data.resize(w * h * 4);
-                // DIB is BGRA in memory; SNI wants ARGB (A,R,G,B byte order).
-                const auto *src = static_cast<const uchar *>(bits);
-                uchar *dst = reinterpret_cast<uchar *>(img.data.data());
-                for (int i = 0; i < w * h; ++i) {
-                    dst[i * 4 + 0] = src[i * 4 + 3]; // A
-                    dst[i * 4 + 1] = src[i * 4 + 2]; // R
-                    dst[i * 4 + 2] = src[i * 4 + 1]; // G
-                    dst[i * 4 + 3] = src[i * 4 + 0]; // B
+            // Offer 16 and 24 px variants. The plasma panel on this setup
+            // is 30 px thick (vertical); a 32 px icon makes the panel's
+            // layered-window dirty rect exceed the window and
+            // UpdateLayeredWindowIndirect fails - the tray icons never
+            // get painted. Sized variants let the panel pick a fitting
+            // icon (<=24) instead of forcing 32.
+            for (int dw : {24, 16}) {
+                if (dw > w) {
+                    continue;
                 }
-                m_icon.append(img);
+                BITMAPINFO bmi{};
+                bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+                bmi.bmiHeader.biWidth = dw;
+                bmi.bmiHeader.biHeight = -dw; // top-down
+                bmi.bmiHeader.biPlanes = 1;
+                bmi.bmiHeader.biBitCount = 32;
+                bmi.bmiHeader.biCompression = BI_RGB;
 
-                SelectObject(dc, old);
-                DeleteObject(dib);
+                void *bits = nullptr;
+                HDC screen = GetDC(nullptr);
+                HDC dc = CreateCompatibleDC(screen);
+                HBITMAP dib = CreateDIBSection(dc, &bmi, DIB_RGB_COLORS, &bits, nullptr, 0);
+                if (dib) {
+                    HGDIOBJ old = SelectObject(dc, dib);
+                    memset(bits, 0, size_t(dw) * dw * 4);
+                    DrawIconEx(dc, 0, 0, copy, dw, dw, 0, nullptr, DI_NORMAL);
+
+                    DBusImageStruct img;
+                    img.width = dw;
+                    img.height = dw;
+                    img.data.resize(dw * dw * 4);
+                    // DIB is BGRA in memory; SNI wants ARGB (A,R,G,B byte order).
+                    const auto *src = static_cast<const uchar *>(bits);
+                    uchar *dst = reinterpret_cast<uchar *>(img.data.data());
+                    for (int i = 0; i < dw * dw; ++i) {
+                        dst[i * 4 + 0] = src[i * 4 + 3]; // A
+                        dst[i * 4 + 1] = src[i * 4 + 2]; // R
+                        dst[i * 4 + 2] = src[i * 4 + 1]; // G
+                        dst[i * 4 + 3] = src[i * 4 + 0]; // B
+                    }
+                    m_icon.append(img);
+
+                    SelectObject(dc, old);
+                    DeleteObject(dib);
+                }
+                DeleteDC(dc);
+                ReleaseDC(nullptr, screen);
             }
-            DeleteDC(dc);
-            ReleaseDC(nullptr, screen);
         }
         DeleteObject(info.hbmColor);
         DeleteObject(info.hbmMask);
