@@ -10,6 +10,7 @@
 #include "bridge.h"
 
 #include <QCoreApplication>
+#include <QDebug>
 
 namespace
 {

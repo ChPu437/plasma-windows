@@ -64,12 +64,20 @@ QHash<QString, QImage> g_iconCache;
 
 QImage loadThemeIcon(const QString &id, bool white)
 {
+    /* The breeze window-* SVGs color their glyphs via a CSS class
+       (.ColorScheme-Text { color:#232629 }); the QIcon engine's
+       handling of that differs (and can yield light/white glyphs on
+       the light bar). Re-tint every non-transparent pixel to a fixed
+       target color so the glyph is always dark (or white for the red
+       close hover) regardless of the engine. */
     QImage img = QIcon::fromTheme(id).pixmap(16, 16).toImage().convertToFormat(QImage::Format_ARGB32);
-    if (white) {
-        for (int y = 0; y < img.height(); ++y) {
-            for (int x = 0; x < img.width(); ++x) {
-                const QRgb p = img.pixel(x, y);
-                img.setPixel(x, y, qRgba(255, 255, 255, qAlpha(p)));
+    const QRgb target = white ? QRgb(qRgba(255, 255, 255, 255)) : QRgb(qRgba(35, 38, 41, 255));
+    for (int y = 0; y < img.height(); ++y) {
+        for (int x = 0; x < img.width(); ++x) {
+            const QRgb p = img.pixel(x, y);
+            const int a = qAlpha(p);
+            if (a > 0) {
+                img.setPixel(x, y, qRgba(qRed(target), qGreen(target), qBlue(target), a));
             }
         }
     }
