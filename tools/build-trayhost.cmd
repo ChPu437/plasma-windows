@@ -10,7 +10,8 @@ rem Usage (from a vcvars64 x64 prompt):
 rem   tools\build-trayhost.cmd
 rem ===========================================================================
 
-set "CRAFT=D:\Projects\CraftRoot"
+if not defined CRAFT_ROOT set "CRAFT_ROOT=D:\Projects\CraftRoot"
+set "CRAFT=%CRAFT_ROOT%"
 set "OUT=%~dp0..\tmp\trayhost_out"
 set "SRC=D:\Projects\plasma-windows\src\trayhost"
 

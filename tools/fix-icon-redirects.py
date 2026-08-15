@@ -6,8 +6,10 @@ import sys
 # these into proper aliases, but the filesystem install keeps them as-is,
 # so QImageReader (and therefore KIconLoader) fails on them. Resolve each
 # redirect to the target file's real content (recursively).
-
-root = r"D:\Projects\CraftRoot\bin\data\icons"
+#
+# Usage: fix-icon-redirects.py [<icons-root>]
+# Default: CRAFT_ROOT env var, else the maintainer's local path.
+root = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("CRAFT_ROOT", r"D:\Projects\CraftRoot") + r"\bin\data\icons"
 REDIRECT_LIMIT = 200  # bytes; real SVG files are much larger
 
 resolved = 0

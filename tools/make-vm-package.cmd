@@ -16,7 +16,7 @@ rem Usage: make-vm-package.cmd [outdir]
 rem   default outdir: D:\Projects\plasma-windows\vm-package
 rem ===========================================================================
 
-set "CRAFT_ROOT=D:\Projects\CraftRoot"
+if not defined CRAFT_ROOT set "CRAFT_ROOT=D:\Projects\CraftRoot"
 set "OUTDIR=%~1"
 if "%OUTDIR%"=="" set "OUTDIR=D:\Projects\plasma-windows\vm-package"
 set "SEVENZIP=%CRAFT_ROOT%\dev-utils\bin\7za.exe"

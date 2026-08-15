@@ -11,7 +11,8 @@ rem Usage (from a vcvars64 x64 prompt):
 rem   tools\build-startmenu.cmd
 rem ===========================================================================
 
-set "CRAFT=D:\Projects\CraftRoot"
+if not defined CRAFT_ROOT set "CRAFT_ROOT=D:\Projects\CraftRoot"
+set "CRAFT=%CRAFT_ROOT%"
 set "OUT=D:\_startmenu_out"
 set "SRC=D:\Projects\plasma-windows\src\startmenu"
 

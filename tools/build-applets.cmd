@@ -13,7 +13,8 @@ rem Usage (from a vcvars64 x64 prompt):
 rem   tools\build-applets.cmd
 rem ===========================================================================
 
-set "CRAFT=D:\Projects\CraftRoot"
+if not defined CRAFT_ROOT set "CRAFT_ROOT=D:\Projects\CraftRoot"
+set "CRAFT=%CRAFT_ROOT%"
 set "OUT=D:\_applet_out"
 set "VSSRC=D:\Projects\plasma-windows\src\applets"
 

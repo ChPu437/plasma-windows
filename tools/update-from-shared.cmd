@@ -20,7 +20,8 @@ rem   D:\Projects\CraftRoot\update-from-shared.cmd
 rem ===========================================================================
 
 set "SHARE=\\vmware-host\Shared Folders\shared\plasma-vm"
-set "CRAFT=D:\Projects\CraftRoot"
+if not defined CRAFT_ROOT set "CRAFT_ROOT=D:\Projects\CraftRoot"
+set "CRAFT=%CRAFT_ROOT%"
 
 rem ---------- 0. shared folder sanity check ----------
 if not exist "%SHARE%\bin\plasmashell.exe" (

@@ -12,7 +12,7 @@ rem Clients must use: DBUS_SESSION_BUS_ADDRESS=tcp:host=127.0.0.1,port=12443
 rem (exported by pc_setup_env for everything this script launches).
 rem ===========================================================================
 
-set "CRAFT_ROOT=D:\Projects\CraftRoot"
+if not defined CRAFT_ROOT set "CRAFT_ROOT=D:\Projects\CraftRoot"
 
 call "%~dp0plasma-common.cmd" :pc_setup_env
 if errorlevel 1 goto :fail

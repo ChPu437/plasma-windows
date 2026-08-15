@@ -17,6 +17,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Package,
     [string]$CraftRoot = "D:\Projects\CraftRoot",
+    [string]$VcVars64 = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
     [switch]$SkipNinja,
     [switch]$SyncBlueprintsFirst
 )
@@ -70,11 +71,16 @@ if (-not $junction) {
 $ninjaBuild = Join-Path $junction.FullName "build"
 Write-Host "ninja build dir: $ninjaBuild"
 
-$env:Path = "D:\Projects\CraftRoot\dev-utils\bin;D:\Projects\CraftRoot\bin;$env:Path"
-$installOut = cmd /c "call `"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat`" >nul 2>&1 && set PATH=D:\Projects\CraftRoot\dev-utils\bin;D:\Projects\CraftRoot\bin;%PATH% && D:\Projects\CraftRoot\dev-utils\bin\ninja.exe -C $ninjaBuild install -j 12 2>&1"
+$craftDev = "$CraftRoot\dev-utils\bin"
+$craftBin = "$CraftRoot\bin"
+$ninja = "$CraftRoot\dev-utils\bin\ninja.exe"
+$env:Path = "$craftDev;$craftBin;$env:Path"
+$installOut = cmd /c "call `"$VcVars64`" >nul 2>&1 && set PATH=$craftDev;$craftBin;%PATH% && $ninja -C $ninjaBuild install -j 12 2>&1"
 $installOut | Select-String "error|FAILED" | ForEach-Object { Write-Host "  $_" }
 if ($LASTEXITCODE -ne 0) {
     Write-Error "ninja install failed"
 }
 Write-Host "rebuild-from-clean: OK"
 exit 0
+
+
