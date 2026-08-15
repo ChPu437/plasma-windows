@@ -342,3 +342,14 @@ the no-op + own-process skip described in section 8.
 Widget explorer got squashed into 160x160 because
 `updateVisibility()` called `slotWindowPositionChanged()` which resizes
 mainItem to the current window size (see section 10).
+
+## 12. Popup resize stutter (2026-08-15, unfixed - low priority)
+
+Resizing the windowsmenu popup (drag its edge - WindowResizeHandler uses
+startSystemResize, a native WM_SYSCOMMAND SC_SIZE loop) feels laggy. Not
+caused by the software renderer (d3d11 shows the same), and unlike the
+panel stall it is not an SPI_SETWORKAREA broadcast storm. Suspects:
+per-frame QML relayout of the popup (GridView + delegates) and/or the
+LOCATIONCHANGE win-event stream hitting plasmashell's own event hooks
+during the system resize loop. Deferred - resizing the launcher is a
+low-frequency operation.

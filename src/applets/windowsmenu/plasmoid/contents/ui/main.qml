@@ -30,8 +30,13 @@ PlasmoidItem {
     // The menu itself (shown in the popup when expanded).
     fullRepresentation: Item {
         id: menuRoot
-        Layout.preferredWidth: Kirigami.Units.gridUnit * 30
-        Layout.preferredHeight: Kirigami.Units.gridUnit * 26
+        // Explicit size: the popup sizes itself from the content's
+        // implicit size - a ColumnLayout-wrapped sidebar collapses the
+        // implicit width to ~0 (3px grid observed) without this.
+        implicitWidth: Kirigami.Units.gridUnit * 30
+        implicitHeight: Kirigami.Units.gridUnit * 26
+        Layout.preferredWidth: implicitWidth
+        Layout.preferredHeight: implicitHeight
 
         StartMenuModel {
             id: menu
@@ -73,17 +78,23 @@ PlasmoidItem {
             spacing: Kirigami.Units.smallSpacing
 
             // Left column: sidebar (All Apps + categories) and the
-            // power menu at the bottom.
-            ColumnLayout {
+            // power menu at the bottom. Plain Column with explicit
+            // width: a nested ColumnLayout here made the RowLayout
+            // assign the whole width to this column (implicit-size
+            // loop through the inner fillWidth items) and squeezed
+            // the right column to a few px.
+            Column {
+                id: leftCol
                 Layout.preferredWidth: Kirigami.Units.gridUnit * 9
                 Layout.fillHeight: true
+                width: Kirigami.Units.gridUnit * 9
                 spacing: Kirigami.Units.smallSpacing
 
                 // Left: sidebar (All Apps + user dirs)
                 ListView {
                     id: sidebarView
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    width: parent.width
+                    height: parent.height - powerButton.height - parent.spacing
 
                     model: menuRoot.sidebarModel()
                     currentIndex: menuRoot.currentSidebarIndex()
@@ -105,7 +116,7 @@ PlasmoidItem {
                 // Power menu (shutdown / reboot / suspend / hibernate / lock)
                 QQC2.ToolButton {
                     id: powerButton
-                    Layout.fillWidth: true
+                    width: parent.width
                     text: i18n("Power")
                     icon.name: "system-shutdown-symbolic"
                     onClicked: powerMenu.popup(powerButton, powerButton.width - powerMenu.width, powerButton.height)
