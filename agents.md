@@ -533,3 +533,30 @@ Rules:
    python (`io.open(..., encoding='utf-8')`) or write without BOM
    (`New-Object System.Text.UTF8Encoding(False)`), and stop plasmashell
    before touching its config.
+
+## 14. Repo hygiene & scripting conventions (2026-08-15 cleanup lessons)
+
+1. **Encoding**: tools (.cmd/.ps1/.py) must be UTF-8 without BOM (cmd.exe
+   is unreliable with a BOM; KConfig also mis-parses BOM). No Chinese text
+   in scripts - the repo is public; keep UI/comments in English.
+   .gitattributes pins CRLF for .cmd/.ps1 and LF elsewhere - new files must
+   follow it; `git add --renormalize .` is the one-time line-ending fix-up.
+2. **De-localization pattern** (env-var first, local default last): .cmd
+   scripts use
+   `if not defined CRAFT_ROOT set "CRAFT_ROOT=D:\Projects\CraftRoot"` +
+   `set "CRAFT=%CRAFT_ROOT%"`; PowerShell uses `$env:CRAFT_ROOT` with the
+   local path as fallback; python takes argv then `CRAFT_ROOT`. Never add
+   a new hardcoded maintainer path as the only option.
+3. **PowerShell 5.1 command-mode pitfall**: inside a `cmd /c "..."` string
+   argument, `$var\bin` is misparsed (`\b` is treated as a backspace) -
+   pre-build path variables (`$craftBin = "$CraftRoot\bin"`) in expression
+   mode and reference them without backslash suffixes. Also: strings
+   containing `\bin` must not be written via the edit tool (JSON `\b`
+   escapes corrupt the written line) - use python for those edits.
+4. **rebuild-from-clean.ps1 requires PowerShell 7** (PS 5.1 cannot parse
+   its `cmd /c ... && ...` string; this predates the cleanup). VcVars64 is
+   a parameter, default = maintainer's VS2022 Build Tools.
+5. **Public repo**: remote `origin` = git@github.com:ChPu437/plasma-windows.git
+   (SSH; the dev machine currently has no key - the user pushes). Before
+   pushing: `verify-patches.ps1` must pass and `git status` must be clean
+   (stray *.exp / *.obj / t1.log stay gitignored).
