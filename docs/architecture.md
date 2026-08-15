@@ -105,6 +105,9 @@ Winlogon -> shell config (HKCU) -> switch-shell.cmd mechanism
 
 * Our windows (panels, desktop, OSD): frameless, fully self-drawn; optional
   acrylic blur via `SetWindowCompositionAttribute`.
+  STATUS (2026-08-15): the accent policy IS applied but blur/acrylic does
+  NOT render yet (popups stay translucent) - investigation in
+  `roadmap.md` section 1.
 * Third-party windows: DWM native chrome. Dark title bars are per-app opt-in
   (`DWMWA_USE_IMMERSIVE_DARK_MODE`); rounded corners have no Win10 LTSC API.
 * Optional WS6 (after Phase 3): hook-based decoration proxy
@@ -123,3 +126,95 @@ KWin, Wayland, X11, systemd, ksmserver, lock screen/polkit.
 Every modification we made to stock KDE/Qt code - what it does, how to
 use it, how it is implemented, and its limitations - is documented in
 `docs/windows-port-notes.md` (with patch files in `patches/`).
+
+## 10. Porting playbook (how this port works)
+
+There is no official KDE platform-porting manual. KDE provides the
+**mechanisms**: Qt QPA plugins (window-system layer), KF6 backend
+conventions (the source layout is the documentation), ECM
+(`extra-cmake-modules`, build-time feature detection), Craft (build
+pipeline). The playbook below is ours; it generalizes to any platform.
+
+### 10.1 Porting principles
+
+1. The shell is a family of processes on a session bus (DBus), not one
+   program. The bus is the hard prerequisite - get it first (M1).
+2. Never port the compositor: the host OS owns composition (DWM is
+   mandatory since Win8; KWin is not ported).
+3. Prefer native platform APIs over compatibility layers (Win32/DWM/
+   registry, not WSL/Cygwin-style shims).
+4. The QML layer is the last thing to touch: a port is mostly making
+   the C++ dependency chain build and providing correct platform data.
+5. Patch discipline: every source change is a patch applied to the
+   pristine tarball, so rebuilds are reproducible and diffs reviewable
+   (AGENTS.md section 13).
+
+### 10.2 Keep / drop matrix (complete)
+
+* **Keep (patched)**: plasmashell, libplasma/PlasmaQuick,
+  plasma-desktop (subset), kded6, kactivitymanagerd,
+  krunner/klipper (optional).
+* **Drop**: KWin (-> DWM), X11/Wayland protocols (-> self-written
+  KWindowSystem backend), systemd user session (-> logon script +
+  shell registry key), ksmserver (-> shell lifecycle script),
+  udev/Solid backends (-> Windows device APIs, verify), lock
+  screen/polkit (-> Winlogon).
+* **Replace with backends**: notifications (-> SnoreToast-based
+  KNotifications backend), system tray (SNI over DBus + native
+  `Shell_TrayWnd` host), KIO `file://` (needs kded + DBus activation).
+
+Drop decisions must be explicit and documented; silent drops become
+mystery regressions later.
+
+### 10.3 Platform abstraction map (KF6 backends)
+
+| Framework | Abstraction | Official backends |
+|---|---|---|
+| Qt (QPA) | platform plugins | qwindows, qxcb, qwayland |
+| KWindowSystem | `src/platforms/<platform>` plugin | xcb, wayland (+ our windows) |
+| KGlobalAccel | platform backends + daemon | x11, wayland |
+| Solid | `backends/` | udev, udisks2, fstab, fake |
+| KNotifications | `KNotificationBackend` plugins | xdg, freedesktop (+ snoretoast) |
+| KIdleTime | `src/platforms/<platform>` | x11, wayland |
+| KConfig | `KConfigBackend` plugins | ini, kconf_update |
+| KWallet | backends | kwalletd, ksecret, file |
+| KWin | platform backends + scenes | x11, wayland (not ported) |
+| KIO | `kio_<protocol>` workers via kded | file:// generic, protocol-specific |
+
+Platform selection and plugin install paths are ECM's job; runtime
+discovery uses `libraryPaths()`/`QT_PLUGIN_PATH`. Pattern to copy
+(KWindowSystem 6.28.0): a Qt plugin with `Q_PLUGIN_METADATA`
+`"platforms": ["windows"]` auto-loaded when
+`QGuiApplication::platformName()` matches.
+
+### 10.4 Feature hookup map
+
+| Feature | Seam (where KDE looks for platform support) | Hookup (what the backend provides) |
+|---|---|---|
+| Window list / taskbar | libtaskmanager WindowTasksModel (KX11Extras on X11, compositor protocol on Wayland) | `KWindowSystemWindows`: EnumWindows + taskbar filter + SetWinEventHook signals |
+| Window actions | KWindowSystem core API | foreground-stealing dance, minimize/restore, show desktop |
+| Window state | KWindowInfo NET semantics | mapping table, `windows-port-notes.md` section 1.4 |
+| Effects (blur/acrylic) | KWindowEffects / KGuiAddons | `SetWindowCompositionAttribute` accent policy, runtime-loaded (see section 7 status) |
+| Work area / struts | `KWindowSystem::workArea()` | `SPI_GET/SETWORKAREA` (no strut protocol on Windows) |
+| System tray | SNI over DBus | watcher + native `Shell_TrayWnd` host (`tray-host-cairo-study.md`) |
+| Notifications | KNotifications backends | native mapping (SnoreToast) |
+| Startup items / hotkeys | no KDE seam (host's job) | session bootstrap; reference: ManagedShell `StartupRunner` |
+| Persistence | KConfig | works out of the box; mind BOM and MAX_PATH |
+
+### 10.5 Milestone shape and acceptance
+
+```
+M0  toolchain + build pipeline (Craft / binary cache / patches)
+M1  session bus + core services (dbus-daemon, kded6, kactivitymanagerd)
+M2  window-system abstraction (KWindowSystem Windows backend)
+M3  plasmashell runs: desktop, panel, launcher, taskbar
+M4  taskbar/window integration, popup anchoring, shell features
+M5  shell replacement + explorer parity
+```
+
+A milestone is done only when it runs in the target environment (the
+VM), not the dev machine: each feature exercised by a probe or manual
+checklist, the parity checklist (`explorer-parity.md`) updated,
+patches pass the static verifier and rebuild-from-clean, and
+destructive experiments happen only in the disposable VM (snapshot
+first).

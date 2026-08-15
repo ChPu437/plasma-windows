@@ -117,6 +117,14 @@ Windows builds.
   approximation is documented in code.
 - slideWindow: unsupported.
 
+STATUS (2026-08-15): the accent policy is applied, but blur/acrylic is
+**not visually effective yet** - popups (kickoff/clock/tray) stay
+translucent. Two real bugs were already fixed (AccentState enum values
+off by one; blur request arriving before the HWND existed, now
+re-applied in `Dialog::showEvent`/`PlasmaWindow::showEvent`), but the
+effect still does not render. Remaining hypotheses and verification
+notes are tracked in `roadmap.md` section 1.
+
 ### 1.6 Known limitations (Windows backend)
 
 - Single virtual desktop; desktop() is always 0.
@@ -381,3 +389,32 @@ restart) were gone and services died at logon:
   listener init, services connected nowhere and each process spawned a
   private `dbus-daemon --session` (a second bus appeared). Polling
   removed the race.
+
+## 15. Cross-cutting lessons (2026-08-15)
+
+Condensed porting lessons, mostly already documented in the sections
+above or in AGENTS.md; listed here as a checklist for new porting work.
+
+1. **Missing platform `if` branches**: when a Plasma feature
+   misbehaves, check which class the QML element maps to
+   (`QML_NAMED_ELEMENT`/`QML_FOREIGN`), then look for
+   `isPlatformX11()/isPlatformWayland()` forks with no `Q_OS_WIN` case.
+   Fix the upstream interface, not around it (AGENTS.md section 12.1).
+2. **QML bindings are lazy**: C++ reading a bound property directly
+   never triggers binding evaluation; set values explicitly in C++ (or
+   in QML signal handlers) at show time (AGENTS.md section 12.1).
+3. **Park windows off-screen before anchoring** (no "flash centered
+   then snap" glitch); re-anchor on every show and once more after
+   layout settles (sections 10-12, AGENTS.md section 12.1).
+4. **WinEvent hook callbacks must bounce into the Qt event loop**
+   (`Qt::QueuedConnection`), and string-based `invokeMethod` needs
+   `Q_INVOKABLE` handlers (section 1.2).
+5. **Load undocumented APIs at runtime** (`GetProcAddress`) and gate on
+   the OS build (section 1.5; qtbase SDK-19041 fallback patch).
+6. **File encodings**: UTF-8 without BOM everywhere - KConfig and
+   cmd.exe both misbehave with BOMs (AGENTS.md section 14.1).
+7. **Identify shell windows by class/shape, not PID** - host shells and
+   apps interleave; see AGENTS.md section 12.2.
+8. **Keep build paths short** (MAX_PATH breaks cl.exe with a
+   misleading C1083) and distrust Craft's "up to date" when patch files
+   changed - force with `rebuild-from-clean.ps1` (AGENTS.md 13.4/13.5).
