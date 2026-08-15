@@ -37,6 +37,7 @@ static const WCHAR kShellValue[] = L"Shell";
 static HWND g_hwnd = NULL;
 static HICON g_icon = NULL;
 static BOOL g_dryRun = FALSE;
+static HANDLE g_mutex = NULL;
 static WCHAR g_sessionCmd[MAX_PATH * 2] = {0}; /* full path to session-shell.cmd */
 static WCHAR g_currentShell[1024] = {0};        /* registry value */
 static UINT g_taskbarCreatedMsg = 0;
@@ -479,6 +480,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLin
     /* keep the console window hidden unless running from a console */
     if (GetConsoleWindow()) {
         ShowWindow(GetConsoleWindow(), SW_HIDE);
+    }
+
+    /* Single instance: the tray resident may be started from both the
+       HKCU Run key (explorer shell) and session-shell.cmd (plasma shell),
+       e.g. during the coexistence phase when both shells run. Only one
+       tray icon/watchdog may exist. CLI mode (--to) above is exempt. */
+    g_mutex = CreateMutexW(NULL, FALSE, L"PlasmaWindowsShellSwitcher");
+    if (!g_mutex || GetLastError() == ERROR_ALREADY_EXISTS) {
+        return 0;
     }
 
     WNDCLASSW wc = {0};

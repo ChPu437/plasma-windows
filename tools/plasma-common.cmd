@@ -33,14 +33,19 @@ set "CRAFT_DATA=%CRAFT_ROOT%\bin\data"
 exit /b 0
 
 rem ---------------------------------------------------------------------------
-rem :pc_setup_env - PATH, Qt plugins, XDG dirs, DBus address, software backend
+rem :pc_setup_env - PATH, Qt plugins, DBus address, software backend
 rem ---------------------------------------------------------------------------
 :pc_setup_env
 call :pc_resolve_root
 set "PATH=%CRAFT_BIN%;%PATH%"
 set "QT_PLUGIN_PATH=%CRAFT_ROOT%\plugins"
-set "XDG_CONFIG_HOME=%LOCALAPPDATA%"
-set "XDG_DATA_HOME=%LOCALAPPDATA%"
+rem NOTE: no XDG_* overrides here on purpose. Qt's QStandardPaths on
+rem Windows already resolves GenericDataLocation/GenericConfigLocation to
+rem %LOCALAPPDATA% (verified with qtpaths6), so KDE data and configs land
+rem there without any environment help. Setting XDG_DATA_HOME/XDG_CONFIG_HOME
+rem session-wide would re-route every XDG-aware application (opencode, ...)
+rem into %LOCALAPPDATA% as well, breaking data locations and making it
+rem impossible to switch between explorer and plasma without restarting apps.
 set "DBUS_SESSION_BUS_ADDRESS=tcp:host=127.0.0.1,port=12443"
 set "QT_QUICK_BACKEND=software"
 exit /b 0
@@ -108,7 +113,11 @@ if errorlevel 1 (
     ) else (
         start "plasma-dbus" "%CRAFT_BIN%\dbus-daemon.exe" --session --nofork
     )
-    timeout /t 2 /nobreak >nul
+    rem Wait until the bus is actually listening. A fixed sleep raced the
+    rem daemon's TCP listener initialization at logon, so services started
+    rem right after connected nowhere and Qt spawned a second, private
+    rem dbus-daemon --session per process.
+    powershell -NoProfile -Command "$i = 0; while ($i -lt 50 -and -not (Get-NetTCPConnection -LocalPort 12443 -State Listen -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 200; $i++ }; if (Get-NetTCPConnection -LocalPort 12443 -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
 )
 exit /b 0
 

@@ -353,3 +353,31 @@ per-frame QML relayout of the popup (GridView + delegates) and/or the
 LOCATIONCHANGE win-event stream hitting plasmashell's own event hooks
 during the system resize loop. Deferred - resizing the launcher is a
 low-frequency operation.
+
+## 13. Session environment: no XDG overrides (2026-08-15)
+
+`pc_setup_env` used to set `XDG_CONFIG_HOME`/`XDG_DATA_HOME` to
+`%LOCALAPPDATA%` for the whole session. That re-routes every
+XDG-aware application (opencode, ...) into `%LOCALAPPDATA%`, so data
+created under explorer is invisible under plasma and vice versa -
+"lost sessions" after switching shells. Qt's QStandardPaths already
+resolves GenericDataLocation/GenericConfigLocation to `%LOCALAPPDATA%`
+on Windows (verified with qtpaths6, with and without XDG set), so the
+overrides were redundant. Removed; KDE data/config stay in
+`%LOCALAPPDATA%` via the Qt default.
+
+## 14. Session autostart: shellswitch + bus readiness (2026-08-15)
+
+After a reboot the shell switcher and its watchdogs (kded6/trayhost
+restart) were gone and services died at logon:
+
+- shellswitch is now started from two places (single-instance mutex
+  `PlasmaWindowsShellSwitcher` in shellswitch.c): the HKCU Run key
+  (explorer-shell case, processed by explorer) and session-shell.cmd
+  (plasma-shell case). It lives in the package bin/ next to kded6.exe
+  and trayhost.exe, which it restarts from its own directory.
+- `pc_start_bus` now polls until port 12443 actually listens instead of
+  a fixed 2s sleep: at logon the fixed sleep raced the daemon's TCP
+  listener init, services connected nowhere and each process spawned a
+  private `dbus-daemon --session` (a second bus appeared). Polling
+  removed the race.

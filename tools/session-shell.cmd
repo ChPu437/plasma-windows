@@ -38,6 +38,14 @@ call "%~dp0plasma-common.cmd" :pc_mirror_data
 call "%~dp0plasma-common.cmd" :pc_start_bus
 call "%~dp0plasma-common.cmd" :pc_start_services
 
+rem Tray-resident shell switcher: also acts as the kded6/trayhost watchdog
+rem (restarts them if they die while a plasma session is up). Single
+rem instance - the HKCU Run key covers the explorer-shell case, this
+rem covers the plasma-shell case.
+if exist "%CRAFT_BIN%\shellswitch.exe" (
+    start "plasma-shellswitch" /D "%CRAFT_BIN%" "%CRAFT_BIN%\shellswitch.exe"
+)
+
 rem Run the shell in the foreground; keep this script alive as session host.
 "%CRAFT_BIN%\plasmashell.exe"
 exit /b %errorlevel%
