@@ -560,3 +560,14 @@ Rules:
    (SSH; the dev machine currently has no key - the user pushes). Before
    pushing: `verify-patches.ps1` must pass and `git status` must be clean
    (stray *.exp / *.obj / t1.log stay gitignored).
+
+## 15. Commit attribution (AI collaborator)
+
+Any commit whose implementation work was done by AI (rather than manual
+fixes), or when the user explicitly asks for it, gets a
+`Co-Authored-By` trailer crediting the AI model used. By default the
+collaborator is the model in use, recorded as
+`Co-Authored-By: DeepSeek <deepseek@deepseek.com>`; the trailer is added
+both to the current commit and (on request) retroactively to history
+via `git filter-branch`. When the user instructs it, always add the
+trailer regardless of whether AI did the work.
