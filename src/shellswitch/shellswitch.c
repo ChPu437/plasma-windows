@@ -284,7 +284,10 @@ static void doSwitchToPlasma(void)
 {
     if (!g_sessionCmd[0]) {
         logMsg(L"ERROR: session-shell.cmd not found\n");
-        MessageBoxW(g_hwnd, L"session-shell.cmd not found.\n\nSearched:\n  D:\\Projects\\CraftRoot\\session-shell.cmd\n  D:\\documents\\shared\\plasma-vm\\session-shell.cmd",
+        MessageBoxW(g_hwnd,
+                    L"session-shell.cmd not found.\n\n"
+                    L"Searched: next to shellswitch.exe, PLASMA_WINDOWS_ROOT / CRAFT_ROOT,\n"
+                    L"and the maintainer-local fallback paths.",
                     L"Shell Switcher", MB_ICONERROR);
         return;
     }
@@ -305,13 +308,43 @@ static void doSwitchToPlasma(void)
 
 static void discoverSessionCmd(void)
 {
-    const WCHAR *candidates[] = {
+    WCHAR path[MAX_PATH * 2];
+    WCHAR candidate[MAX_PATH * 2];
+
+    /* 1. next to this exe (CraftRoot\bin\shellswitch.exe -> parent) */
+    if (GetModuleFileNameW(NULL, path, MAX_PATH * 2) > 0) {
+        WCHAR *slash = wcsrchr(path, L'\\');
+        if (slash) {
+            *slash = 0;
+        }
+        StringCchPrintfW(candidate, MAX_PATH * 2, L"%s\\..\\session-shell.cmd", path);
+        if (GetFileAttributesW(candidate) != INVALID_FILE_ATTRIBUTES) {
+            StringCchCopyW(g_sessionCmd, MAX_PATH * 2, candidate);
+            return;
+        }
+    }
+
+    /* 2. environment override (PLASMA_WINDOWS_ROOT, then CRAFT_ROOT) */
+    DWORD envLen = GetEnvironmentVariableW(L"PLASMA_WINDOWS_ROOT", path, MAX_PATH * 2);
+    if (envLen == 0) {
+        envLen = GetEnvironmentVariableW(L"CRAFT_ROOT", path, MAX_PATH * 2);
+    }
+    if (envLen > 0 && envLen < MAX_PATH * 2) {
+        StringCchPrintfW(candidate, MAX_PATH * 2, L"%s\\session-shell.cmd", path);
+        if (GetFileAttributesW(candidate) != INVALID_FILE_ATTRIBUTES) {
+            StringCchCopyW(g_sessionCmd, MAX_PATH * 2, candidate);
+            return;
+        }
+    }
+
+    /* 3. maintainer-local fallbacks */
+    const WCHAR *fallbacks[] = {
         L"D:\\Projects\\CraftRoot\\session-shell.cmd",
         L"D:\\documents\\shared\\plasma-vm\\session-shell.cmd",
     };
-    for (int i = 0; i < (int)(sizeof(candidates) / sizeof(candidates[0])); ++i) {
-        if (GetFileAttributesW(candidates[i]) != INVALID_FILE_ATTRIBUTES) {
-            StringCchCopyW(g_sessionCmd, MAX_PATH * 2, candidates[i]);
+    for (int i = 0; i < (int)(sizeof(fallbacks) / sizeof(fallbacks[0])); ++i) {
+        if (GetFileAttributesW(fallbacks[i]) != INVALID_FILE_ATTRIBUTES) {
+            StringCchCopyW(g_sessionCmd, MAX_PATH * 2, fallbacks[i]);
             return;
         }
     }

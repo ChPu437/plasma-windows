@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(plasma-windows
-    VERSION 0.2.0
-    DESCRIPTION "Plasma Shell for Windows - Phase 1 Qt shell"
+    VERSION 0.4.0
+    DESCRIPTION "Plasma Shell for Windows - KDE Plasma desktop shell on Windows"
     LANGUAGES CXX
 )
 
