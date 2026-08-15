@@ -5,12 +5,17 @@ replace `explorer.exe` as the interactive shell on Windows 10 IoT
 Enterprise LTSC 2021 with `plasmashell` (KDE Plasma 6.7.4), keeping the
 Windows kernel / Win32 / DWM / graphics stack untouched.
 
-Status: **Phase 3 (M3/M4)** - plasmashell runs on Windows with the core
+Status: **Phase 4 (M4.x)** - plasmashell runs on Windows with the core
 desktop working: wallpaper, panel, kickoff app launcher, taskbar with
 real Windows window integration, correct popup anchoring, edit mode and
 "show desktop". Session services (dbus, kded6, kactivitymanagerd) run.
-Remaining M4 work: icon theme integration (panel icons), taskbar polish
-(thumbnails), tray/volume alternatives; then VM acceptance (M5).
+The launcher gained a Windows-style start menu (`org.kde.plasma.windowsmenu`)
+with a power menu, UWP app listing and custom categories; a tray bridge
+(`trayhost`, SNI) surfaces native Windows tray icons in the plasma tray;
+third-party windows can be given a Breeze-style title bar
+(`src/titlebar`). Dolphin and the KIO Windows backend build and run
+(Phase 4 goal). Remaining M4/M5 work: icon theme polish (panel icons),
+taskbar thumbnails, VM acceptance run.
 
 See `agents.md` for the full project plan and `patches/PATCHES.md` for
 the porting patch catalogue. Design docs live in `docs/`
@@ -34,7 +39,8 @@ what a Plasma shell must provide to match explorer).
 | 3 M3.5| Windows app integration in launcher (Start Menu bridge) | done (base) |
 | 3 M3.6| Taskbar window integration + popup anchoring | done (base) |
 | 3 M3.7| Edit mode, "show desktop", window stacking | done (dev machine) |
-| 4     | Dolphin + KIO Windows backend          | todo   |
+| 3 M4.x| Windows start menu, tray bridge (SNI), Breeze title bar, panel work area | done |
+| 4     | Dolphin + KIO Windows backend          | done (builds & runs) |
 | 5     | KRunner, notifications, polish         | todo   |
 
 ## What works today
@@ -72,16 +78,17 @@ what a Plasma shell must provide to match explorer).
    panel work-area (`SPI_SETWORKAREA`) are implemented but fight the
    live Explorer taskbar on the dev machine - verify in the VM (no
    Explorer).
-4. **Tray**: statusnotifierwatcher runs; network/volume applets are
-   missing (PulseAudio dependency) - native Windows tray/volume bridge
-   needed. Planned route: become the tray host by registering a
-   `Shell_TrayWnd` window (no hooking); see
-   `docs/tray-integration-research.md` section 3C2 + spike list.
-5. **Windows app integration**: the launcher only lists KDE `.desktop`
-   entries; generate `.desktop` files (or a Windows app bridge) so
-   notepad/calc/browsers are launchable.
-6. **kglobalaccel** service not started (global shortcuts unavailable).
-7. **VM validation (M5)**: run the full session in the LTSC VM
+4. **IME candidate window**: the IME candidate popup (TextInputHost)
+   does not display while plasma is the active shell - see
+   `docs/titlebar-research.md`.
+5. **Balloon notifications**: tray NIF_INFO balloons are captured by
+   the tray bridge but not surfaced through SNI (protocol has no
+   balloon channel).
+6. **Popup resize stutter**: resizing the launcher popup is laggy
+   (system resize loop + QML relayout), low priority - see
+   `docs/windows-port-notes.md` section 12.
+7. **kglobalaccel** service not started (global shortcuts unavailable).
+8. **VM validation (M5)**: run the full session in the LTSC VM
    (snapshot first), fix anything the VM exposes, then attempt shell
    replacement.
 
@@ -100,6 +107,10 @@ plasma-windows/
 ```
 
 ## Development environment
+
+Paths below are the maintainer's local environment (`CRAFT_ROOT` /
+`PLASMA_WINDOWS_ROOT` environment variables override them where the
+scripts support it).
 
 * Craft root: `D:\Projects\CraftRoot`
   (ABI `windows-cl-msvc2022-x86_64`, binary cache
