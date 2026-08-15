@@ -18,6 +18,8 @@ Investigated 2026-08-13; two real bugs were found and fixed:
   * `PlasmaWindow::showEvent` now re-applies `handleFrameChanged()` (`0003`).
 
 **Still translucent.** Remaining hypotheses (in order of likelihood):
+(Status cross-referenced in `windows-port-notes.md` section 1.5 and
+`architecture.md` section 7.)
 
 1. `SetWindowCompositionAttribute` succeeds but DWM does not blur this
    particular window type (frameless + Qt transparent background flag).
@@ -81,6 +83,59 @@ KIO ships the header on Windows.
 include "translucent" and adaptive wallpapers (day/night) never switch.
 Not visible with the current Next wallpaper; revisit when wallpaper
 variants matter.
+
+## Deferred / planned
+
+### Window flicker after "right-click panel, then click desktop twice" (2026-08-15, unfixed)
+
+**Symptom**: the sequence 1) right-click the panel (context menu opens),
+2) click the desktop once (menu closes), 3) click the desktop again
+makes "all foreground apps flash" (windows vanish and reappear for one
+frame).
+
+**Diagnosis (verified with a SetWinEventHook monitor: HIDE/SHOW/
+MINIMIZE/SWITCH/LOCATIONCHANGE/REORDER/STATECHANGE/FOREGROUND)**:
+
+- No window is actually hidden, minimized, moved or reordered. The only
+  anomaly: after the context menu closes, the system hands the
+  foreground to the window under the mouse - the plasma **desktop view**
+  - for ~4 ms (our handlers hand it back to the topmost non-shell
+  window immediately). The desktop gets raised with that activation,
+  covering every window for a frame: that is the visible "flash".
+- Chrome/Steam also react to a desktop foreground as if "show desktop"
+  was pressed and hide their windows for ~30-80 ms (they restore by
+  themselves). This was the earlier, larger flash; the handlers below
+  eliminated it, but the residual desktop-cover frame remains.
+
+**Attempted fixes (all in the Craft work trees, NOT committed - none
+fully solves the residual flash)**:
+
+1. kwindowsystem Windows plugin `setShowingDesktop` log - not called
+   during the sequence (so not a "show desktop" trigger).
+2. PanelView `updateWorkArea` log - SPI_SETWORKAREA not called either.
+3. kwindowsystem FOREGROUND hook: when the desktop becomes foreground,
+   `SetForegroundWindow(prev)` back - too slow (foreground lock, took
+   hundreds of ms; Chrome had already hidden).
+4. Same with AttachThreadInput force - still not fast enough.
+5. libplasma `Dialog::hideEvent`: hand the foreground to the topmost
+   non-shell window when a popup closes - ineffective because by the
+   time the panel context menu closes, the foreground is already not
+   ours (condition `fgPid == GetCurrentProcessId()` not met).
+6. plasma-workspace `DesktopView::event()` (Expose/ActivationChange/
+   WindowActivate): hand the foreground back to the topmost non-shell
+   window **and** `SetWindowPos(HWND_BOTTOM)` synchronously. This makes
+   the hand-back take ~4 ms (Chrome/Steam no longer flash), but the
+   single desktop-cover frame during activation remains visible.
+7. qtbase `QWindowsWindow::requestActivateWindow`: early-return when
+   the HWND has `WS_EX_NOACTIVATE` (the desktop view). The desktop still
+   becomes foreground - the activation comes from the system's
+   "foreground after window close" rule, not from Qt.
+
+**Next ideas (not tried)**: intercept the system foreground hand-over
+before the desktop is activated (e.g. from the context menu close path,
+or a `WM_ACTIVATEAPP`/`WM_ACTIVATE` hook on the desktop HWND), or
+accept the single frame (visually minor; only noticeable with many
+windows open).
 
 ## Deferred / planned
 
