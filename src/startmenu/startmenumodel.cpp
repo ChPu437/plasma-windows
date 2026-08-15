@@ -7,12 +7,14 @@
 
 #include <QDebug>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
-#include <QPixmap>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QProcess>
 #include <QStandardPaths>
-#include <QUrl>
 
 #include <shlobj.h>
 #include <shlwapi.h>
@@ -23,6 +25,7 @@
 StartMenuModel::StartMenuModel(QObject *parent)
     : QAbstractListModel(parent)
 {
+    loadCategories();
 }
 
 int StartMenuModel::rowCount(const QModelIndex &parent) const
@@ -93,14 +96,33 @@ QString StartMenuModel::rootPath() const
 void StartMenuModel::setDirectory(const QString &path)
 {
     const QString normalized = QDir::fromNativeSeparators(path);
-    if (m_directory == normalized) {
+    if (m_directory == normalized && !m_categoryDirs.isEmpty() == normalized.startsWith(QLatin1String("cat:"))) {
         return;
     }
     m_directory = normalized;
     m_isRoot = path.isEmpty() || path == QLatin1String("all");
     if (m_isRoot) {
         m_stack.clear();
+        m_categoryDirs.clear();
+    } else if (normalized.startsWith(QLatin1String("cat:"))) {
+        /* custom category: resolve its directories from the config */
+        const QString catName = normalized.mid(4);
+        m_categoryDirs.clear();
+        for (const QJsonValue &cat : m_categories) {
+            if (cat.toObject().value(QLatin1String("name")).toString() == catName) {
+                const QJsonArray dirs = cat.toObject().value(QLatin1String("dirs")).toArray();
+                for (const QJsonValue &d : dirs) {
+                    const QString dir = QDir::fromNativeSeparators(d.toString());
+                    if (!dir.isEmpty()) {
+                        m_categoryDirs.append(dir);
+                    }
+                }
+                break;
+            }
+        }
+        m_stack.append(normalized);
     } else {
+        m_categoryDirs.clear();
         m_stack.append(normalized);
     }
     scan();
@@ -116,8 +138,10 @@ void StartMenuModel::goParent()
     if (m_stack.isEmpty()) {
         m_directory.clear();
         m_isRoot = true;
+        m_categoryDirs.clear();
     } else {
         m_directory = m_stack.last();
+        m_categoryDirs.clear();
     }
     scan();
     Q_EMIT directoryChanged();
@@ -134,6 +158,8 @@ void StartMenuModel::scan()
     QStringList dirs;
     if (m_isRoot) {
         dirs << rootPath().split(QLatin1Char(';'), Qt::SkipEmptyParts);
+    } else if (!m_categoryDirs.isEmpty()) {
+        dirs = m_categoryDirs;
     } else {
         dirs << m_directory;
     }
@@ -171,7 +197,105 @@ void StartMenuModel::scan()
         m_entries.append(e);
     }
 
+    /* UWP (Store) apps live in the virtual AppsFolder, not as .lnk
+       files - append them once when showing the root view. */
+    if (m_isRoot && !m_uwpLoaded) {
+        scanUwpApps();
+        m_uwpLoaded = true;
+    }
+
     endResetModel();
+}
+
+void StartMenuModel::scanUwpApps()
+{
+    IShellFolder *desktop = nullptr;
+    if (FAILED(SHGetDesktopFolder(&desktop))) {
+        return;
+    }
+    PIDLIST_ABSOLUTE appsPidl = nullptr;
+    if (FAILED(SHParseDisplayName(L"shell:AppsFolder", nullptr, &appsPidl, 0, nullptr))) {
+        desktop->Release();
+        return;
+    }
+    IShellFolder *appsFolder = nullptr;
+    if (FAILED(desktop->BindToObject(appsPidl, nullptr, IID_IShellFolder, reinterpret_cast<void **>(&appsFolder)))) {
+        CoTaskMemFree(appsPidl);
+        desktop->Release();
+        return;
+    }
+    IEnumIDList *en = nullptr;
+    if (SUCCEEDED(appsFolder->EnumObjects(nullptr, SHCONTF_NONFOLDERS | SHCONTF_INCLUDEHIDDEN, &en))) {
+        PITEMID_CHILD child = nullptr;
+        while (en->Next(1, &child, nullptr) == S_OK) {
+            PIDLIST_ABSOLUTE full = ILCombine(appsPidl, child);
+            IShellItem *item = nullptr;
+            if (SUCCEEDED(SHCreateItemFromIDList(full, IID_IShellItem, reinterpret_cast<void **>(&item)))) {
+                PWSTR displayName = nullptr;
+                PWSTR parsingName = nullptr;
+                item->GetDisplayName(SIGDN_NORMALDISPLAY, &displayName);
+                item->GetDisplayName(SIGDN_DESKTOPABSOLUTEPARSING, &parsingName);
+                const QString display = displayName ? QString::fromWCharArray(displayName) : QString();
+                const QString parsing = parsingName ? QString::fromWCharArray(parsingName) : QString();
+                CoTaskMemFree(displayName);
+                CoTaskMemFree(parsingName);
+                item->Release();
+                if (!display.isEmpty() && !parsing.isEmpty()
+                    && !parsing.contains(QLatin1String(".exe"), Qt::CaseInsensitive)
+                    && !parsing.startsWith(QLatin1String("C:"), Qt::CaseInsensitive)
+                    && !parsing.startsWith(QLatin1String("shell:"), Qt::CaseInsensitive)) {
+                    /* AUMID -> shell:AppsFolder launch; the icon provider
+                       handles the "apps:" linkPath prefix */
+                    Entry e;
+                    e.isDir = false;
+                    e.name = display;
+                    e.exec = QStringLiteral("explorer.exe \"shell:AppsFolder\\%1\"").arg(parsing);
+                    e.path = e.linkPath = QStringLiteral("apps:%1").arg(parsing);
+                    m_entries.append(e);
+                }
+            }
+            CoTaskMemFree(child);
+            CoTaskMemFree(full);
+        }
+        en->Release();
+    }
+    appsFolder->Release();
+    CoTaskMemFree(appsPidl);
+    desktop->Release();
+}
+
+void StartMenuModel::loadCategories()
+{
+    m_categories = QJsonArray();
+    const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+        + QLatin1String("/plasma/startmenu-categories.json");
+    QFile f(configPath);
+    if (!f.open(QIODevice::ReadOnly)) {
+        return;
+    }
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    f.close();
+    m_categories = doc.object().value(QLatin1String("sidebar")).toArray();
+}
+
+QVariantList StartMenuModel::categories() const
+{
+    QVariantList out;
+    for (const QJsonValue &cat : m_categories) {
+        const QJsonObject obj = cat.toObject();
+        QVariantMap m;
+        m.insert(QLatin1String("name"), obj.value(QLatin1String("name")).toString());
+        m.insert(QLatin1String("icon"), obj.value(QLatin1String("icon")).toString());
+        out.append(m);
+    }
+    return out;
+}
+
+void StartMenuModel::reload()
+{
+    loadCategories();
+    scan();
+    Q_EMIT directoryChanged();
 }
 
 QString StartMenuModel::resolveLnk(const QString &lnkPath, QString *targetOut) const

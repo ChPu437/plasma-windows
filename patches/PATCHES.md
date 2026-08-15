@@ -323,6 +323,20 @@ stalls window dragging:
   the last frame; show/hide keep their direct calls.
 * `shell/panelview.h`: add `QTimer m_workAreaTimer` member.
 
+`0007-windows-session-backend.patch` (applied after 0006) - Windows power
+backend for the KDE session actions (powers the kickoff LeaveButtons /
+windowsmenu power menu):
+
+* `libkworkspace/sessionmanagementbackend.cpp`: new `WindowsSessionBackend`
+  - shutdown/reboot via `InitiateSystemShutdownExW` (enables the
+  SE_SHUTDOWN_NAME privilege), suspend/hibernate via `SetSuspendState`,
+  all canXyz true; `SessionBackend::self()` selects it on Windows
+  (logind does not exist there).
+* `libkworkspace/sessionmanagement.cpp`: `requestShutdown`/`requestReboot`/
+  `requestLogout` bypass the ksmserver/LogoutPrompt DBus calls on Windows
+  and hand the action straight to the backend (logout =
+  `ExitWindowsEx(EWX_LOGOFF)`, lock = `LockWorkStation`).
+
 ## kwindowsystem (6.28.0) - 0001 updated
 
 `0001-windows-backend.patch` regenerated from the clean 6.28.0 source;

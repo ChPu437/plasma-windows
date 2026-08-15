@@ -12,6 +12,32 @@
 
 namespace
 {
+QImage hbmpToImage(HBITMAP hbmp)
+{
+    BITMAP bmp{};
+    GetObjectW(hbmp, sizeof(bmp), &bmp);
+    if (bmp.bmWidth <= 0 || bmp.bmHeight <= 0) {
+        return {};
+    }
+    const int w = bmp.bmWidth;
+    const int h = bmp.bmHeight;
+    BITMAPINFO bmi{};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = w;
+    bmi.bmiHeader.biHeight = -h; // top-down
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    QImage out(w, h, QImage::Format_ARGB32);
+    HDC dc = GetDC(nullptr);
+    const int lines = GetDIBits(dc, hbmp, 0, h, out.bits(), &bmi, DIB_RGB_COLORS);
+    ReleaseDC(nullptr, dc);
+    if (lines != h) {
+        return {};
+    }
+    return out;
+}
+
 // Render an HICON into an ARGB32 QImage using the system's own icon
 // compositing (DrawIconEx handles both 32-bit alpha and legacy mask
 // icons), avoiding all-black results from naive mask interpretation.
@@ -89,6 +115,32 @@ QImage StartMenuImageProvider::requestImage(const QString &id, QSize *size, cons
 
 QImage StartMenuImageProvider::iconForLink(const QString &lnkPath) const
 {
+    /* UWP apps: linkPath is "apps:<AUMID>" - extract the icon via the
+       AppsFolder IShellItemImageFactory */
+    if (lnkPath.startsWith(QLatin1String("apps:"))) {
+        const QString aumid = lnkPath.mid(5);
+        const QString shellPath = QStringLiteral("shell:AppsFolder\\%1").arg(aumid);
+        IShellItem *item = nullptr;
+        if (SUCCEEDED(SHCreateItemFromParsingName(reinterpret_cast<LPCWSTR>(shellPath.utf16()), nullptr,
+                                                  IID_IShellItem, reinterpret_cast<void **>(&item)))) {
+            IShellItemImageFactory *factory = nullptr;
+            if (SUCCEEDED(item->QueryInterface(IID_IShellItemImageFactory, reinterpret_cast<void **>(&factory)))) {
+                SIZE size{32, 32};
+                HBITMAP hbmp = nullptr;
+                if (SUCCEEDED(factory->GetImage(size, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK, &hbmp))) {
+                    const QImage img = hbmpToImage(hbmp);
+                    DeleteObject(hbmp);
+                    factory->Release();
+                    item->Release();
+                    return img;
+                }
+                factory->Release();
+            }
+            item->Release();
+        }
+        return {};
+    }
+
     // 1. explicit icon location from the .lnk (usually the exe + index)
     QString iconSource;
     int iconIndex = 0;

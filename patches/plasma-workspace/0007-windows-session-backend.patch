@@ -1,0 +1,214 @@
+--- a/libkworkspace/sessionmanagementbackend.cpp
++++ b/libkworkspace/sessionmanagementbackend.cpp
+@@ -18,6 +18,107 @@
+ #include <iostream>
+ 
+ #include "login1_manager_interface.h"
++
++#ifdef Q_OS_WIN
++#include <windows.h>
++#include <powrprof.h>
++#pragma comment(lib, "powrprof.lib")
++#endif
++#ifdef Q_OS_WIN
++/* Windows power backend: map the KDE session actions onto Win32.
++   shutdown/reboot need SE_SHUTDOWN_NAME - a normal user session has it
++   disabled but enableable via AdjustTokenPrivileges. */
++namespace
++{
++void enableShutdownPrivilege()
++{
++    HANDLE token = nullptr;
++    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) {
++        return;
++    }
++    TOKEN_PRIVILEGES tp{};
++    LUID luid{};
++    if (LookupPrivilegeValueW(nullptr, SE_SHUTDOWN_NAME, &luid)) {
++        tp.PrivilegeCount = 1;
++        tp.Privileges[0].Luid = luid;
++        tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
++        AdjustTokenPrivileges(token, FALSE, &tp, 0, nullptr, nullptr);
++    }
++    CloseHandle(token);
++}
++}
++
++class WindowsSessionBackend : public SessionBackend
++{
++public:
++    SessionManagement::State state() const override
++    {
++        return SessionManagement::State::Ready;
++    }
++
++    bool canShutdown() const override
++    {
++        return true;
++    }
++
++    bool canReboot() const override
++    {
++        return true;
++    }
++
++    bool canSuspend() const override
++    {
++        return true;
++    }
++
++    bool canHybridSuspend() const override
++    {
++        return false;
++    }
++
++    bool canHibernate() const override
++    {
++        return true;
++    }
++
++    bool canSuspendThenHibernate() const override
++    {
++        return false;
++    }
++
++    void shutdown() override
++    {
++        enableShutdownPrivilege();
++        InitiateSystemShutdownExW(nullptr, nullptr, 0, TRUE, FALSE, SHTDN_REASON_MAJOR_OTHER);
++    }
++
++    void reboot() override
++    {
++        enableShutdownPrivilege();
++        InitiateSystemShutdownExW(nullptr, nullptr, 0, TRUE, TRUE, SHTDN_REASON_MAJOR_OTHER);
++    }
++
++    void suspend() override
++    {
++        SetSuspendState(FALSE, FALSE, FALSE);
++    }
++
++    void hybridSuspend() override
++    {
++    }
++
++    void hibernate() override
++    {
++        SetSuspendState(TRUE, FALSE, FALSE);
++    }
++
++    void suspendThenHibernate() override
++    {
++    }
++};
++#endif
++
++
+ 
+ static SessionBackend *s_backend = nullptr;
+ 
+@@ -37,6 +138,13 @@
+     } else {
+         s_backend = new DummySessionBackend();
+     }
++#ifdef Q_OS_WIN
++    /* Windows has no logind/ksmserver: every power action maps directly
++       to a Win32 call (shutdown/reboot via InitiateSystemShutdownExW,
++       suspend/hibernate via SetSuspendState, lock via LockWorkStation,
++       logout via ExitWindowsEx). */
++    s_backend = new WindowsSessionBackend();
++#endif
+ 
+     return s_backend;
+ }
+--- a/libkworkspace/sessionmanagement.cpp
++++ b/libkworkspace/sessionmanagement.cpp
+@@ -16,6 +16,10 @@
+ #include <QEventLoopLocker>
+ 
+ #include <iostream>
++
++#ifdef Q_OS_WIN
++#include <windows.h>
++#endif
+ 
+ #include "logoutprompt_interface.h"
+ #include "screenlocker_interface.h"
+@@ -168,6 +172,13 @@
+         return;
+     }
+ 
++#ifdef Q_OS_WIN
++    /* no ksmserver/LogoutPrompt on Windows: hand the action straight to
++       the backend (InitiateSystemShutdownExW) */
++    Q_UNUSED(confirmationMode)
++    SessionBackend::self()->shutdown();
++    return;
++#else
+     if (qEnvironmentVariableIntValue("PLASMA_SESSION_GUI_TEST")) {
+         std::cout << "shutdown" << std::endl;
+         return;
+@@ -185,6 +196,7 @@
+         ShutdownIface iface;
+         lockQuitUntilFinished(iface.logoutAndShutdown());
+     }
++#endif
+ }
+ 
+ void SessionManagement::requestReboot(ConfirmationMode confirmationMode)
+@@ -193,6 +205,11 @@
+         return;
+     }
+ 
++#ifdef Q_OS_WIN
++    Q_UNUSED(confirmationMode)
++    SessionBackend::self()->reboot();
++    return;
++#else
+     if (qEnvironmentVariableIntValue("PLASMA_SESSION_GUI_TEST")) {
+         std::cout << "reboot" << std::endl;
+         return;
+@@ -209,6 +226,7 @@
+         ShutdownIface iface;
+         lockQuitUntilFinished(iface.logoutAndReboot());
+     }
++#endif
+ }
+ 
+ void SessionManagement::requestLogout(ConfirmationMode confirmationMode)
+@@ -216,6 +234,12 @@
+     if (!canLogout()) {
+         return;
+     }
++#ifdef Q_OS_WIN
++    /* no ksmserver on Windows: exit the Windows session (login screen) */
++    Q_UNUSED(confirmationMode)
++    ExitWindowsEx(EWX_LOGOFF, SHTDN_REASON_MAJOR_OTHER);
++    return;
++#else
+     bool confirm = confirmationMode == ConfirmationMode::ForcePrompt;
+     if (confirmationMode == ConfirmationMode::Default) {
+         confirm = SessionBackend::self()->confirmLogout();
+@@ -227,6 +251,7 @@
+         ShutdownIface iface;
+         lockQuitUntilFinished(iface.logout());
+     }
++#endif
+ }
+ 
+ void SessionManagement::suspend()
+@@ -266,8 +291,13 @@
+     if (!canLock()) {
+         return;
+     }
++#ifdef Q_OS_WIN
++    LockWorkStation();
++    return;
++#else
+     OrgFreedesktopScreenSaverInterface iface(QStringLiteral("org.freedesktop.ScreenSaver"), QStringLiteral("/ScreenSaver"), QDBusConnection::sessionBus());
+     iface.Lock();
++#endif
+ }
+ 
+ void SessionManagement::switchUser()

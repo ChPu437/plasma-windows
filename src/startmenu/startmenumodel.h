@@ -6,6 +6,7 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QJsonArray>
 #include <QStringList>
 #include <QVector>
 
@@ -18,6 +19,7 @@ class StartMenuModel : public QAbstractListModel
     Q_PROPERTY(QString directory READ directory WRITE setDirectory NOTIFY directoryChanged)
     Q_PROPERTY(bool isRoot READ isRoot NOTIFY directoryChanged)
     Q_PROPERTY(QString rootPath READ rootPath CONSTANT)
+    Q_PROPERTY(QVariantList categories READ categories CONSTANT)
 
 public:
     enum Roles {
@@ -39,15 +41,19 @@ public:
     void setDirectory(const QString &path);
     bool isRoot() const;
     QString rootPath() const;
+    QVariantList categories() const;
 
     Q_INVOKABLE void goParent();
     Q_INVOKABLE void launch(int row) const;
+    Q_INVOKABLE void reload();
 
 Q_SIGNALS:
     void directoryChanged();
 
 private:
     void scan();
+    void scanUwpApps();
+    void loadCategories();
     QString resolveLnk(const QString &lnkPath, QString *targetOut) const;
 
     struct Entry
@@ -63,4 +69,7 @@ private:
     bool m_isRoot = true;
     QVector<Entry> m_entries;
     QStringList m_stack;
+    QStringList m_categoryDirs; // active custom-category directories ("cat:" view)
+    QJsonArray m_categories;
+    bool m_uwpLoaded = false;
 };

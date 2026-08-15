@@ -6,6 +6,7 @@
 #include <QQmlEngine>
 #include <QQmlExtensionPlugin>
 
+#include "poweractions.h"
 #include "startmenuimageprovider.h"
 #include "startmenumodel.h"
 
@@ -19,6 +20,7 @@ public:
     {
         Q_ASSERT(QLatin1String(uri) == QLatin1String("org.kde.plasma.windowsmenu"));
         qmlRegisterType<StartMenuModel>(uri, 1, 0, "StartMenuModel");
+        qmlRegisterType<PowerActions>(uri, 1, 0, "PowerActions");
     }
 
     void initializeEngine(QQmlEngine *engine, const char *uri) override

@@ -38,12 +38,21 @@ PlasmoidItem {
             directory: "all"
         }
 
+        PowerActions {
+            id: power
+        }
+
         // Sidebar: All Apps + user-configured directories.
         property var sidebarDirs: []
 
         function sidebarModel() {
+            const cats = []
+            for (let i = 0; i < menu.categories.length; i++) {
+                cats.push({ name: menu.categories[i].name, path: "cat:" + menu.categories[i].name, icon: menu.categories[i].icon || "folder-symbolic" })
+            }
             return [
                 { name: i18n("All Apps"), path: "all", icon: "view-grid-symbolic" },
+                ...cats,
                 ...sidebarDirs,
             ]
         }
@@ -63,26 +72,43 @@ PlasmoidItem {
             anchors.margins: Kirigami.Units.smallSpacing
             spacing: Kirigami.Units.smallSpacing
 
-            // Left: sidebar (All Apps + user dirs)
-            ListView {
-                id: sidebarView
+            // Left column: sidebar (All Apps + categories) and the
+            // power menu at the bottom.
+            ColumnLayout {
                 Layout.preferredWidth: Kirigami.Units.gridUnit * 9
                 Layout.fillHeight: true
+                spacing: Kirigami.Units.smallSpacing
 
-                model: menuRoot.sidebarModel()
-                currentIndex: menuRoot.currentSidebarIndex()
-                clip: true
+                // Left: sidebar (All Apps + user dirs)
+                ListView {
+                    id: sidebarView
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
 
-                delegate: QQC2.ToolButton {
-                    id: sideButton
-                    width: sidebarView.width
-                    text: modelData.name
-                    icon.name: modelData.icon || "folder-symbolic"
-                    highlighted: sidebarView.currentIndex === index
-                    onClicked: {
-                        sidebarView.currentIndex = index
-                        menu.directory = modelData.path
+                    model: menuRoot.sidebarModel()
+                    currentIndex: menuRoot.currentSidebarIndex()
+                    clip: true
+
+                    delegate: QQC2.ToolButton {
+                        id: sideButton
+                        width: sidebarView.width
+                        text: modelData.name
+                        icon.name: modelData.icon || "folder-symbolic"
+                        highlighted: sidebarView.currentIndex === index
+                        onClicked: {
+                            sidebarView.currentIndex = index
+                            menu.directory = modelData.path
+                        }
                     }
+                }
+
+                // Power menu (shutdown / reboot / suspend / hibernate / lock)
+                QQC2.ToolButton {
+                    id: powerButton
+                    Layout.fillWidth: true
+                    text: i18n("Power")
+                    icon.name: "system-shutdown-symbolic"
+                    onClicked: powerMenu.popup(powerButton, powerButton.width - powerMenu.width, powerButton.height)
                 }
             }
 
@@ -171,6 +197,57 @@ PlasmoidItem {
                     QQC2.ToolTip.visible: itemMouse.containsMouse
                     QQC2.ToolTip.text: model.name
                 }
+                }
+            }
+        }
+
+        QQC2.Menu {
+            id: powerMenu
+            title: i18n("Power")
+
+            QQC2.MenuItem {
+                text: i18n("Shut Down")
+                icon.source: "system-shutdown-symbolic"
+                enabled: power.canShutdown
+                onClicked: {
+                    root.expanded = false
+                    power.shutdown()
+                }
+            }
+            QQC2.MenuItem {
+                text: i18n("Restart")
+                icon.source: "system-reboot-symbolic"
+                enabled: power.canReboot
+                onClicked: {
+                    root.expanded = false
+                    power.reboot()
+                }
+            }
+            QQC2.MenuItem {
+                text: i18n("Sleep")
+                icon.source: "system-suspend-symbolic"
+                enabled: power.canSuspend
+                onClicked: {
+                    root.expanded = false
+                    power.suspend()
+                }
+            }
+            QQC2.MenuItem {
+                text: i18n("Hibernate")
+                icon.source: "system-suspend-hibernate-symbolic"
+                enabled: power.canHibernate
+                onClicked: {
+                    root.expanded = false
+                    power.hibernate()
+                }
+            }
+            QQC2.MenuItem {
+                text: i18n("Lock Screen")
+                icon.source: "system-lock-screen-symbolic"
+                enabled: power.canLock
+                onClicked: {
+                    root.expanded = false
+                    power.lock()
                 }
             }
         }
