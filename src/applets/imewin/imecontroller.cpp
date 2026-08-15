@@ -39,7 +39,11 @@ void ImeController::refresh()
             m_targetWnd = fg;
         }
     }
-    const DWORD tid = fg ? GetWindowThreadProcessId(fg, nullptr) : 0;
+    // Read the layout of the user window (m_targetWnd), not the shell's:
+    // after a click the foreground is the panel itself, whose thread has
+    // its own HKL that never changes - that made the indicator stick.
+    const HWND probe = (m_targetWnd && IsWindow(m_targetWnd)) ? m_targetWnd : fg;
+    const DWORD tid = probe ? GetWindowThreadProcessId(probe, nullptr) : 0;
     const HKL hkl = GetKeyboardLayout(tid);
     const LANGID lang = LOWORD(hkl);
     const WORD primary = PRIMARYLANGID(lang);
