@@ -14,6 +14,7 @@
 #include <QTextStream>
 
 #include <shellapi.h>
+#include <tlhelp32.h>
 
 #include "snibridge.h"
 
@@ -32,6 +33,27 @@ void logLine(const QString &line)
 namespace
 {
 WindowsTrayHost *s_self = nullptr;
+
+bool isProcessRunning(const wchar_t *imageName)
+{
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    PROCESSENTRY32W pe{};
+    pe.dwSize = sizeof(pe);
+    bool found = false;
+    if (Process32FirstW(snap, &pe)) {
+        do {
+            if (_wcsicmp(pe.szExeFile, imageName) == 0) {
+                found = true;
+                break;
+            }
+        } while (Process32NextW(snap, &pe));
+    }
+    CloseHandle(snap);
+    return found;
+}
 
 // The SHELLTRAYDATA payload carries the NOTIFYICONDATA in a 32-bit-style
 // layout (hWnd/hIcon/hBalloonIcon are 4-byte DWORDs) even on x64; the
@@ -157,15 +179,20 @@ bool WindowsTrayHost::start()
         reRegisterAllBridges();
     });
 
-    connect(&m_zOrderTimer, &QTimer::timeout, this, [this]() {
-        HWND top = FindWindowW(L"Shell_TrayWnd", nullptr);
-        if (top != m_trayWnd && m_trayWnd) {
-            logLine(QStringLiteral("z-order: FindWindow -> other (0x%1), raising ours")
-                        .arg(reinterpret_cast<quintptr>(top), 0, 16));
-            SetWindowPos(m_trayWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-        }
-    });
-    m_zOrderTimer.start(100);
+    // Keep our virtual Shell_TrayWnd above explorer's real tray while
+    // both exist (explorer co-existence phase). When explorer is gone
+    // (plasma is the shell) there is nothing to fight - skip the timer.
+    if (isProcessRunning(L"explorer.exe")) {
+        connect(&m_zOrderTimer, &QTimer::timeout, this, [this]() {
+            HWND top = FindWindowW(L"Shell_TrayWnd", nullptr);
+            if (top != m_trayWnd && m_trayWnd) {
+                logLine(QStringLiteral("z-order: FindWindow -> other (0x%1), raising ours")
+                            .arg(reinterpret_cast<quintptr>(top), 0, 16));
+                SetWindowPos(m_trayWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+        });
+        m_zOrderTimer.start(100);
+    }
 
     logLine(QStringLiteral("Ready."));
     return true;
@@ -192,7 +219,7 @@ int WindowsTrayHost::iconCount() const
     return m_icons.size();
 }
 
-void WindowsTrayHost::dumpIcons()
+void WindowsTrayHost::cleanupDeadIcons()
 {
     logIcons();
 }
@@ -206,7 +233,10 @@ void WindowsTrayHost::handleCopyData(WPARAM fromWnd, const COPYDATASTRUCT *cds)
 
     switch (cds->dwData) {
     case 1: // SHELLTRAYDATA
-        if (cds->cbData >= sizeof(int) + sizeof(UINT) + sizeof(NOTIFYICONDATAW)) {
+        // Gate on the in-payload 32-bit layout size, not the 64-bit
+        // NOTIFYICONDATAW: 32-bit apps (QQ/WeChat/Telegram) send the
+        // smaller struct and were rejected by sizeof(NOTIFYICONDATAW).
+        if (cds->cbData >= sizeof(int) + sizeof(UINT) + sizeof(NidLayout)) {
             const char *data = static_cast<const char *>(cds->lpData);
             const UINT message = *reinterpret_cast<const UINT *>(data + 4);
             const NidLayout *nid = reinterpret_cast<const NidLayout *>(data + 8);
@@ -267,6 +297,13 @@ void WindowsTrayHost::handleTrayMessage(UINT message, const void *nidPtr)
         }
         return;
     }
+    if (message == NIM_SETFOCUS) {
+        // Focus request for the (virtual) tray window - nothing to do,
+        // and it must NOT fall through to ADD/MODIFY (that would create
+        // an icon entry with no payload for unknown keys).
+        logLine(QStringLiteral("  SETFOCUS key=0x%1 (ignored)").arg(key, 0, 16));
+        return;
+    }
     if (message == NIM_DELETE) {
         // Guid-registered icons live under the mapped primary key, not the
         // raw (hwnd, uID) pair - use the same resolution as ADD/MODIFY.
@@ -319,6 +356,18 @@ void WindowsTrayHost::handleTrayMessage(UINT message, const void *nidPtr)
         const auto git = m_guidMap.constFind(guidKey);
         if (git != m_guidMap.constEnd()) {
             primaryKey = git.value();
+        }
+    }
+
+    /* Reject an ADD without a valid callback window - except GUID
+       icons, whose hWnd shell32 rewrites to an internal id that
+       IsWindow cannot validate. Without this, bogus payloads create
+       icon entries that show up as icon-less SNI items. */
+    if (message == NIM_ADD && !hasGuid) {
+        const HWND addHwnd = reinterpret_cast<HWND>(static_cast<quintptr>(nid->hWnd));
+        if (!addHwnd || !IsWindow(addHwnd)) {
+            logLine(QStringLiteral("  ADD rejected: no valid hwnd=0x%1 key=0x%2").arg(nid->hWnd, 0, 16).arg(key, 0, 16));
+            return;
         }
     }
 
@@ -393,8 +442,10 @@ void WindowsTrayHost::handleNotifyRect(const void *data, DWORD cbData)
     const quintptr hWnd = *reinterpret_cast<const quintptr *>(wi + 16);
     const UINT uID = *reinterpret_cast<const UINT *>(wi + 24);
     logLine(QStringLiteral("  GETRECT magic=%1 msg=%2 hwnd=0x%3 uID=%4").arg(magic).arg(msg).arg(hWnd, 0, 16).arg(uID));
-    // dwMessage 1 = top-left, 2 = bottom-right. We answer with the icon's
-    // placement; for now return (0,0) - only used for tooltip positioning.
+    // dwMessage 1 = top-left, 2 = bottom-right. The real tray answers
+    // with the icon's placement (used for tooltip positioning); we only
+    // log it - the wndproc returns TRUE which callers treat as "no
+    // position data".
 }
 
 void WindowsTrayHost::unregisterBridge(quint64 key)
@@ -492,28 +543,18 @@ void WindowsTrayHost::logIcons()
 {
     // Opportunistic cleanup: apps that died without NIM_DELETE (or whose
     // DELETE key drifted away) leave stale bridges + SNI services behind.
-    // Drop entries whose callback window no longer exists.
+    // Drop entries whose callback window no longer exists. GUID icons
+    // are exempt: shell32 rewrites their hWnd to an internal id that
+    // IsWindow cannot validate - removing them would kill live icons
+    // every cycle until the next MODIFY resurrects them.
     for (auto it = m_icons.begin(); it != m_icons.end();) {
-        if (it.value().hwnd && !IsWindow(it.value().hwnd)) {
+        if (it.value().hwnd && !it.value().hasGuid && !IsWindow(it.value().hwnd)) {
             logLine(QStringLiteral("  cleanup dead icon key=0x%1 hwnd=0x%2").arg(it.key(), 0, 16).arg(reinterpret_cast<quintptr>(it.value().hwnd), 0, 16));
             unregisterBridge(it.key());
             it = m_icons.erase(it);
         } else {
             ++it;
         }
-    }
-
-    logLine(QStringLiteral("--- icon table (%1 entries) ---").arg(m_icons.size()));
-    for (auto it = m_icons.constBegin(); it != m_icons.constEnd(); ++it) {
-        const IconEntry &e = it.value();
-        logLine(QStringLiteral("  key=0x%1 hwnd=0x%2 uID=%3 tip=[%4] callback=0x%5 v=%6 guid=%7")
-                    .arg(it.key(), 0, 16)
-                    .arg(reinterpret_cast<quintptr>(e.hwnd), 0, 16)
-                    .arg(e.uID)
-                    .arg(e.tip)
-                    .arg(e.callbackMessage, 0, 16)
-                    .arg(e.version)
-                    .arg(e.hasGuid ? guidToString(e.guid) : QStringLiteral("-")));
     }
 }
 

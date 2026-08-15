@@ -74,7 +74,10 @@ public:
         tip.subTitle = QString();
         return QDBusVariant(QVariant::fromValue(tip));
     }
-    QDBusObjectPath menu() const { return QDBusObjectPath(QStringLiteral("/NO_DBUSMENU")); }
+    /* No menu: return an empty path per the SNI spec. A fake path like
+       /NO_DBUSMENU makes clients try to connect to a DBus object that
+       does not exist (silent errors in the plasma tray). */
+    QDBusObjectPath menu() const { return QDBusObjectPath(); }
     int windowId() const { return 0; }
     bool itemIsMenu() const { return false; }
 

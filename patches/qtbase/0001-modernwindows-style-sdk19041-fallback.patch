@@ -1,6 +1,6 @@
-diff --git "a/src\\plugins\\styles\\modernwindows\\qwindows11style.cpp" "b/src\\plugins\\styles\\modernwindows\\qwindows11style.cpp"
+diff --git a/src/plugins/styles/modernwindows/qwindows11style.cpp b/src/plugins/styles/modernwindows/qwindows11style.cpp
 index f80d9f5..dde4f4b 100644
---- "a/src\\plugins\\styles\\modernwindows\\qwindows11style.cpp"
+--- a/src/plugins/styles/modernwindows/qwindows11style.cpp
 +++ b/src/plugins/styles/modernwindows/qwindows11style.cpp
 @@ -2879,10 +2879,18 @@ void QWindows11Style::dwmSetWindowCornerPreference(const QWidget *widget, bool b
      if (!d->nativeRoundedTopLevelWindows)

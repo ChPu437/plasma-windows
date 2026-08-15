@@ -17,10 +17,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    QTimer dumpTimer;
-    dumpTimer.setInterval(10000);
-    QObject::connect(&dumpTimer, &QTimer::timeout, &host, &WindowsTrayHost::dumpIcons);
-    dumpTimer.start();
+    // Periodic dead-icon cleanup only - the old 10s full-table dump was
+    // debug noise in the log.
+    QTimer cleanupTimer;
+    cleanupTimer.setInterval(10000);
+    QObject::connect(&cleanupTimer, &QTimer::timeout, &host, &WindowsTrayHost::cleanupDeadIcons);
+    cleanupTimer.start();
 
     return app.exec();
 }

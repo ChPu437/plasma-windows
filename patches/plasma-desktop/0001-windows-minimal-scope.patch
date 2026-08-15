@@ -1,4 +1,4 @@
-diff --git a/\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\CMakeLists.txt
+diff --git a/\CMakeLists.txt b/CMakeLists.txt
 index 6b04228..bb0e17c 100644
 --- a/\CMakeLists.txt
 +++ b/CMakeLists.txt
@@ -127,7 +127,7 @@ index 6b04228..bb0e17c 100644
      kdoctools_install(po)
  endif()
  
-diff --git a/\ConfigureChecks.cmake b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\ConfigureChecks.cmake
+diff --git a/\ConfigureChecks.cmake b/ConfigureChecks.cmake
 index 568274d..9f0d82a 100644
 --- a/\ConfigureChecks.cmake
 +++ b/ConfigureChecks.cmake
@@ -144,9 +144,9 @@ index 568274d..9f0d82a 100644
      message(FATAL_ERROR "Couldn't find xkb_base using pkg-config: is xkeyboard-config installed?")
  elseif (CMAKE_CROSSCOMPILING)
      if (NOT EXISTS "${CMAKE_SYSROOT}/${XKBDIR}")
-diff --git a/\applets\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\CMakeLists.txt
+diff --git a/\applets/CMakeLists.txt b/applets/CMakeLists.txt
 index 0dfc9ec..4e3b97a 100644
---- a/\applets\\CMakeLists.txt
+--- a/\applets/CMakeLists.txt
 +++ b/applets//CMakeLists.txt
 @@ -5,7 +5,7 @@ add_subdirectory(kickoff)
  add_subdirectory(trash)
@@ -165,9 +165,9 @@ index 0dfc9ec..4e3b97a 100644
 -add_subdirectory(keyboardlayout)
 +# add_subdirectory(kimpanel)  # deferred: enabled in later M3 stages
 +# add_subdirectory(keyboardlayout)  # deferred: enabled in later M3 stages
-diff --git a/\containments\\desktop\\plugins\\folder\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\CMakeLists.txt
+diff --git a/\containments/desktop/plugins/folder/CMakeLists.txt b/containments/desktop/plugins/folder/CMakeLists.txt
 index 9ddc1fc..ea8fe21 100644
---- a/\containments\\desktop\\plugins\\folder\\CMakeLists.txt
+--- a/\containments/desktop/plugins/folder/CMakeLists.txt
 +++ b/containments//desktop//plugins//folder//CMakeLists.txt
 @@ -28,6 +28,7 @@ target_sources(folderplugin PRIVATE
  
@@ -177,9 +177,9 @@ index 9ddc1fc..ea8fe21 100644
                        Qt::Qml
                        Qt::Quick
                        Plasma::Activities
-diff --git a/\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt
+diff --git a/\containments/desktop/plugins/folder/autotests/CMakeLists.txt b/containments/desktop/plugins/folder/autotests/CMakeLists.txt
 index 2b5bbf7..71cd07e 100644
---- a/\containments\\desktop\\plugins\\folder\\autotests\\CMakeLists.txt
+--- a/\containments/desktop/plugins/folder/autotests/CMakeLists.txt
 +++ b/containments//desktop//plugins//folder//autotests//CMakeLists.txt
 @@ -11,7 +11,7 @@ add_library(foldertest STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/../debug.cpp
@@ -190,9 +190,9 @@ index 2b5bbf7..71cd07e 100644
  
  ecm_add_tests(
     desktopschemehelpertest.cpp
-diff --git a/\containments\\desktop\\plugins\\folder\\foldermodel.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\containments\\desktop\\plugins\\folder\\foldermodel.cpp
+diff --git a/\containments/desktop/plugins/folder/foldermodel.cpp b/containments/desktop/plugins/folder/foldermodel.cpp
 index 98d6f81..5076f92 100644
---- a/\containments\\desktop\\plugins\\folder\\foldermodel.cpp
+--- a/\containments/desktop/plugins/folder/foldermodel.cpp
 +++ b/containments//desktop//plugins//folder//foldermodel.cpp
 @@ -82,7 +82,9 @@
  #include <chrono>
@@ -204,9 +204,9 @@ index 98d6f81..5076f92 100644
  
  using namespace std::chrono_literals;
  
-diff --git a/\applets\\pager\\pagermodel.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\pager\\pagermodel.cpp
+diff --git a/\applets/pager/pagermodel.cpp b/applets/pager/pagermodel.cpp
 index 80ce477..e7809af 100644
---- a/\applets\\pager\\pagermodel.cpp
+--- a/\applets/pager/pagermodel.cpp
 +++ b/applets//pager//pagermodel.cpp
 @@ -10,10 +10,13 @@
  #include "windowmodel.h"
@@ -234,9 +234,9 @@ index 80ce477..e7809af 100644
  #if HAVE_X11
      else if (KWindowSystem::isPlatformX11()) {
          indices = findWindows(TaskManager::XWindowTasksModel::winIdsFromMimeData(mimeData, &ok));
-diff --git a/\applets\\taskmanager\\CMakeLists.txt b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\CMakeLists.txt
+diff --git a/\applets/taskmanager/CMakeLists.txt b/applets/taskmanager/CMakeLists.txt
 index 06a8a96..da9b50d 100644
---- a/\applets\\taskmanager\\CMakeLists.txt
+--- a/\applets/taskmanager/CMakeLists.txt
 +++ b/applets//taskmanager//CMakeLists.txt
 @@ -41,8 +41,13 @@ ecm_qt_declare_logging_category(org.kde.plasma.taskmanager
      CATEGORY_NAME org.kde.plasma.taskmanager)
@@ -260,9 +260,9 @@ index 06a8a96..da9b50d 100644
                        KF6::Service
                        KF6::WindowSystem
                        PW::LibNotificationManager)
-diff --git a/\applets\\taskmanager\\backend.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\backend.cpp
+diff --git a/\applets/taskmanager/backend.cpp b/applets/taskmanager/backend.cpp
 index 6516a7e..d5e0a12 100644
---- a/\applets\\taskmanager\\backend.cpp
+--- a/\applets/taskmanager/backend.cpp
 +++ b/applets//taskmanager//backend.cpp
 @@ -38,8 +38,10 @@
  #include <PlasmaActivities/Stats/ResultSet>
@@ -293,9 +293,9 @@ index 6516a7e..d5e0a12 100644
      return -1;
  }
  
-diff --git a/\applets\\taskmanager\\backend.h b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\applets\\taskmanager\\backend.h
+diff --git a/\applets/taskmanager/backend.h b/applets/taskmanager/backend.h
 index c9a30da..5d39466 100644
---- a/\applets\\taskmanager\\backend.h
+--- a/\applets/taskmanager/backend.h
 +++ b/applets//taskmanager//backend.h
 @@ -11,7 +11,9 @@
  #include <QObject>
@@ -307,9 +307,9 @@ index c9a30da..5d39466 100644
  #include <qqmlregistration.h>
  #include <qwindowdefs.h>
  
-diff --git a/\imports\\activitymanager\\switcherbackend.cpp b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\imports\\activitymanager\\switcherbackend.cpp
+diff --git a/\imports/activitymanager/switcherbackend.cpp b/imports/activitymanager/switcherbackend.cpp
 index cd46d03..f76ebb9 100644
---- a/\imports\\activitymanager\\switcherbackend.cpp
+--- a/\imports/activitymanager/switcherbackend.cpp
 +++ b/imports//activitymanager//switcherbackend.cpp
 @@ -33,7 +33,9 @@
  #if HAVE_X11
@@ -333,9 +333,9 @@ index cd46d03..f76ebb9 100644
      return false;
  }
  
-diff --git a/\desktoppackage\\contents\\applet\\CompactApplet.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\applet\\CompactApplet.qml
+diff --git a/\desktoppackage/contents/applet/CompactApplet.qml b/desktoppackage/contents/applet/CompactApplet.qml
 index 1aba2a5..fbfa30e 100644
---- a/\desktoppackage\\contents\\applet\\CompactApplet.qml
+--- a/\desktoppackage/contents/applet/CompactApplet.qml
 +++ b/desktoppackage//contents//applet//CompactApplet.qml
 @@ -33,6 +33,9 @@ PlasmaCore.ToolTipArea {
      property PlasmoidItem plasmoidItem
@@ -347,9 +347,9 @@ index 1aba2a5..fbfa30e 100644
          if (compactRepresentation) {
              compactRepresentation.anchors.fill = null;
              compactRepresentation.parent = compactRepresentationParent;
-diff --git a/\desktoppackage\\contents\\views\\Panel.qml b/D:\\_\\2f8bf60b\\plasma-desktop-6.7.4\\desktoppackage\\contents\\views\\Panel.qml
+diff --git a/\desktoppackage/contents/views/Panel.qml b/desktoppackage/contents/views/Panel.qml
 index 6dd16c1..0bc7111 100644
---- a/\desktoppackage\\contents\\views\\Panel.qml
+--- a/\desktoppackage/contents/views/Panel.qml
 +++ b/desktoppackage//contents//views//Panel.qml
 @@ -218,7 +218,7 @@ Item {
              floatingnessTarget = 1

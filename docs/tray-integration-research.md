@@ -14,6 +14,20 @@ Cairo DE and RetroBar do). Section 3C's "not possible" verdict only
 holds while explorer is running. The host approach replaces hooking as
 the preferred route for the VM scenario; it still needs a spike.
 
+**IMPLEMENTED (2026-08-14..15)**: the host approach is live as
+`src/trayhost` (WindowsTrayHost + Snibridge SNI bridge):
+`Shell_TrayWnd` host window receives `WM_COPYDATA` SHELLTRAYDATA,
+translates NIM_ADD/MODIFY/DELETE/SETVERSION into `StatusNotifierItem`
+DBus services, and forwards clicks back to the app callback window
+(v4-aware wParam/lParam, NIN_SELECT/WM_CONTEXTMENU). trayhost is
+started by the session scripts and kept alive by the shellswitch
+watchdog; bridges re-register when the SNI watcher (kded6) appears.
+Known gaps (tracked in the repo, not this doc): balloon notifications
+(NIF_INFO) are logged but not surfaced through SNI; 32-bit client
+payloads are now accepted via the in-payload size gate but still need
+a real QQ/Telegram VM test; popup-menu support is not provided (Menu
+returns an empty path).
+
 ## 1. The problem
 
 Plasma's system tray speaks the **StatusNotifierItem (SNI)** protocol over

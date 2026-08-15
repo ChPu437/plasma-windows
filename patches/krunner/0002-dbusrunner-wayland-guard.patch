@@ -1,6 +1,6 @@
-diff --git "a/src\\dbusrunner.cpp" "b/src\\dbusrunner.cpp"
+diff --git a/src/dbusrunner.cpp b/src/dbusrunner.cpp
 index 84293ec..cbf83a0 100644
---- "a/src\\dbusrunner.cpp"
+--- a/src/dbusrunner.cpp
 +++ b/src/dbusrunner.cpp
 @@ -17,7 +17,9 @@
  #include <QIcon>

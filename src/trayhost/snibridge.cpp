@@ -260,11 +260,10 @@ static bool forceForeground(HWND hwnd)
     return ok;
 }
 
-// The app's TrackPopupMenu only becomes active (and dismisses on outside
-// clicks) when the app owns the foreground. Activate the callback window
-// first; if it is a hidden host window that cannot take the foreground
-// (Electron_NotifyIconHostWindow etc.), fall back to the process's
-// topmost visible window.
+// Bring the app owning the tray icon to the foreground (see
+// forceForeground above); fall back to the process's topmost visible
+// window when the callback window is a hidden host
+// (Electron_NotifyIconHostWindow etc.).
 void Snibridge::foregroundApp()
 {
     if (!m_hwnd) {

@@ -1,4 +1,4 @@
-diff --git a/\CMakeLists.txt b/D:\\_\\6e12b6ce\\plasma5support-6.7.4\\CMakeLists.txt
+diff --git a/\CMakeLists.txt b/CMakeLists.txt
 index 024258d..afd449d 100644
 --- a/\CMakeLists.txt
 +++ b/CMakeLists.txt
@@ -20,9 +20,9 @@ index 024258d..afd449d 100644
  if(WITH_X11)
      find_package(X11 REQUIRED) #mouse
  endif()
-diff --git a/\src\\CMakeLists.txt b/D:\\_\\6e12b6ce\\plasma5support-6.7.4\\src\\CMakeLists.txt
+diff --git a/\src/CMakeLists.txt b/src/CMakeLists.txt
 index d0c050b..ac6c9fe 100644
---- a/\src\\CMakeLists.txt
+--- a/\src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
 @@ -2,7 +2,7 @@ configure_file(config-X11.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config-X11.h)
  

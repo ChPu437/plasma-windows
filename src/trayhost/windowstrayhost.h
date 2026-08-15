@@ -34,7 +34,7 @@ public:
     void stop();
 
     int iconCount() const;
-    void dumpIcons();
+    void cleanupDeadIcons();
 
 private:
     struct IconEntry

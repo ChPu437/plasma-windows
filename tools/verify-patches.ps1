@@ -57,6 +57,9 @@ foreach ($patchFile in Get-ChildItem $PatchesDir -Recurse -Filter "*.patch") {
 
     $text = [System.Text.Encoding]::UTF8.GetString($bytes)
     if ($text -match 'b/\\') { Fail "$rel : backslash path in +++ line (b/\)" }
+    # absolute build-tree paths (b/D:\_...\pkg\file) hide from the b/\
+    # check - the --/+++ headers must stay relative for cross-machine use
+    if ($text -match '(?m)^(---|\+\+\+) [ab]/[A-Za-z]:') { Fail "$rel : absolute path in ---/+++ header (drive letter)" }
 
     # hunk parse: every @@ line must be followed by at least one +/- line
     # (context-only hunks are empty and rejected by patch.exe as malformed)
