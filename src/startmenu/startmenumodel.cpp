@@ -18,6 +18,7 @@
 
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <shobjidl.h>
 
 #include <QtQml/qqml.h>
 
@@ -340,5 +341,25 @@ void StartMenuModel::launch(int row) const
     if (e.isDir || e.exec.isEmpty()) {
         return;
     }
+    if (e.linkPath.startsWith(QLatin1String("apps:"))) {
+        /* UWP: activate via IApplicationActivationManager - the
+           explorer.exe shell:AppsFolder trick fails with
+           "class not registered" for several apps */
+        launchUwp(e.linkPath.mid(5));
+        return;
+    }
     QProcess::startDetached(e.exec);
+}
+
+void StartMenuModel::launchUwp(const QString &aumid) const
+{
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    IApplicationActivationManager *manager = nullptr;
+    if (SUCCEEDED(CoCreateInstance(CLSID_ApplicationActivationManager, nullptr, CLSCTX_INPROC_SERVER,
+                                   IID_IApplicationActivationManager,
+                                   reinterpret_cast<void **>(&manager)))) {
+        DWORD pid = 0;
+        manager->ActivateApplication(reinterpret_cast<LPCWSTR>(aumid.utf16()), nullptr, AO_NONE, &pid);
+        manager->Release();
+    }
 }

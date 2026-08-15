@@ -55,6 +55,7 @@ private:
     void scanUwpApps();
     void loadCategories();
     QString resolveLnk(const QString &lnkPath, QString *targetOut) const;
+    void launchUwp(const QString &aumid) const;
 
     struct Entry
     {
