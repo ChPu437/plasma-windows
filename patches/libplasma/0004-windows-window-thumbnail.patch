@@ -34,7 +34,7 @@ index 6a54fd6..4779e98 100644
 +#endif
 +
      if (QGuiApplication *gui = dynamic_cast<QGuiApplication *>(QCoreApplication::instance())) {
-         m_xcb = (gui->platformName() == QLatin1String(xcb));
+         m_xcb = (gui->platformName() == QLatin1String("xcb"));
          if (m_xcb) {
 @@ -196,9 +209,19 @@ void WindowThumbnail::itemChange(ItemChange change, const ItemChangeData &data)
              if (startRedirecting()) {
