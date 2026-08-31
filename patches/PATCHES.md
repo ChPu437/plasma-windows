@@ -435,6 +435,29 @@ scene graph. The 500ms `refreshThumbnail` timer now captures into a
 cached QImage on the GUI thread; `windowsThumbnailToTexture` only
 consumes the cache (icon fallback when empty).
 
+## libplasma (6.7.4) - 0006 dwm live thumbnail
+
+`0006-windows-dwm-live-thumbnail.patch` (2026-08-27) - **live** previews
+via `DwmRegisterThumbnail`/`DwmUpdateThumbnailProperties` (public dwmapi,
+Vista+): DWM itself composites the source window into a rect of our own
+top-level window - always current-frame pixels, no capture, no CPU copy.
+`updatePaintNode` renders a fully transparent hole while live, so the
+preview shows through translucent dialogs under either DWM z-order
+semantics; destination rect = item scene rect x devicePixelRatio,
+aspect-fitted around center from `DwmQueryThumbnailSourceSize`;
+re-synced on window Move/Resize/ScreenChange plus a low-frequency timer
+audit catching source minimize/unminimize. Fallback chain untouched
+(PrintWindow cache -> icon); `PLASMA_NO_DWM_THUMBNAILS=1` kill switch;
+MSVC-only `#pragma comment(lib,"dwmapi.lib")`.
+
+Repro note: the committed `0004-windows-window-thumbnail.patch` carried
+a corrupted *context* line (`QLatin1String(xcb)` instead of upstream's
+quoted form), so plain `git apply` rejected hunk 2 outside the original
+authoring tree (fuzzy `patch` tolerated it locally). Replaced by an
+LF-normalized quote-repaired copy; verified against the official
+libplasma-6.7.4 tarball (sha256 match) - stack 0002->0006 now applies
+cleanly end-to-end with raw `git apply`.
+
 ## kio (6.28.0) - Dolphin prerequisite
 
 `0001-windows-export-all-symbols.patch` - `CMakeLists.txt` sets

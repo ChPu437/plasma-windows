@@ -1,0 +1,222 @@
+diff --git a/src/declarativeimports/core/windowthumbnail.cpp b/src/declarativeimports/core/windowthumbnail.cpp
+index dc34e07..899eb34 100644
+--- a/src/declarativeimports/core/windowthumbnail.cpp
++++ b/src/declarativeimports/core/windowthumbnail.cpp
+@@ -21,6 +21,9 @@
+ #include <QSGImageNode>
+ #ifdef Q_OS_WIN
+ #include <QTimer>
++#include <dwmapi.h>
++// MSVC auto-links via pragma; other toolchains must add dwmapi explicitly.
++#pragma comment(lib, "dwmapi.lib")
+ #endif
+ 
+ // X11
+@@ -178,6 +181,9 @@ WindowThumbnail::WindowThumbnail(QQuickItem *parent)
+ 
+ WindowThumbnail::~WindowThumbnail()
+ {
++#ifdef Q_OS_WIN
++    dwmDetach();
++#endif
+     if (m_xcb) {
+         QCoreApplication::instance()->removeNativeEventFilter(this);
+         stopRedirecting();
+@@ -212,6 +218,7 @@ void WindowThumbnail::itemChange(ItemChange change, const ItemChangeData &data)
+ #ifdef Q_OS_WIN
+             if (m_refreshTimer) {
+                 m_refreshTimer->start();
++                auditWindowsMode(); // instant-on preview, no first-tick wait
+             }
+ #endif
+         } else {
+@@ -221,6 +228,7 @@ void WindowThumbnail::itemChange(ItemChange change, const ItemChangeData &data)
+             if (m_refreshTimer) {
+                 m_refreshTimer->stop();
+             }
++            dwmDetach();
+ #endif
+         }
+         break;
+@@ -358,6 +366,18 @@ QSGNode *WindowThumbnail::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData
+ #ifdef Q_OS_WIN
+     if (m_winId == 0 || (window() && window()->winId() == m_winId)) {
+         iconToTexture(m_textureProvider);
++    } else if (m_dwmLive) {
++        // DWM renders the pixels into our window itself; hand the scene graph
++        // a tiny 1x1 transparent texture instead of a full-size upload every
++        // frame (the composited preview does not pass through this node).
++        static const QImage s_hole = [] {
++            QImage img(1, 1, QImage::Format_ARGB32_Premultiplied);
++            img.fill(Qt::transparent);
++            return img;
++        }();
++        m_textureProvider->setTexture(
++            window()->createTextureFromImage(s_hole, QQuickWindow::TextureCanUseAtlas));
++        setThumbnailAvailable(true);
+     } else {
+         windowsThumbnailToTexture(m_textureProvider);
+     }
+@@ -440,10 +460,7 @@ void WindowThumbnail::iconToTexture(WindowTextureProvider *textureProvider)
+ #else
+     {
+         // No XComposite on Windows; show the window's own icon as the
+-        // tooltip thumbnail. (A real live preview would need
+-        // DwmRegisterThumbnail, which paints into the window background
+-        // and therefore requires the tooltip background to be punched
+-        // out - deferred.)
++        // tooltip thumbnail fallback (icon resolution unchanged).
+         const HWND hwnd = reinterpret_cast<HWND>(static_cast<qulonglong>(m_winId));
+         HICON hIcon = nullptr;
+         SendMessageTimeoutW(hwnd, WM_GETICON, ICON_SMALL2, 0, SMTO_ABORTIFHUNG, 500, reinterpret_cast<DWORD_PTR *>(&hIcon));
+@@ -466,6 +483,11 @@ void WindowThumbnail::iconToTexture(WindowTextureProvider *textureProvider)
+ #ifdef Q_OS_WIN
+ void WindowThumbnail::refreshThumbnail()
+ {
++    auditWindowsMode();
++    if (m_dwmLive) {
++        // DWM drives the pixels; nothing to recapture.
++        return;
++    }
+     // Recapture on the GUI thread (not in updatePaintNode, which runs on
+     // the QSG render thread): PrintWindow synchronously waits for the
+     // target window to process WM_PRINT, and doing that on the render
+@@ -544,6 +566,138 @@ void WindowThumbnail::windowsThumbnailToTexture(WindowTextureProvider *texturePr
+     textureProvider->setTexture(window()->createTextureFromImage(image, QQuickWindow::TextureCanUseAtlas));
+     setThumbnailAvailable(true);
+ }
++
++bool WindowThumbnail::eventFilter(QObject *watched, QEvent *event)
++{
++    if (m_dwmLive && watched == window()) {
++        switch (event->type()) {
++        case QEvent::Move:
++        case QEvent::Resize:
++        case QEvent::ScreenChangeInternal: // QWindow-level screen/monitor change
++#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
++        case QEvent::DevicePixelRatioChange:
++#endif
++            dwmSyncDest();
++            break;
++        case QEvent::Hide:
++            dwmDetach();
++            break;
++        default:
++            break;
++        }
++    }
++    return QQuickItem::eventFilter(watched, event);
++}
++
++void WindowThumbnail::auditWindowsMode()
++{
++    const HWND src = reinterpret_cast<HWND>(static_cast<qulonglong>(m_winId));
++    const bool canLive = isVisible() && isEnabled()
++        && m_winId != 0 && window() && window()->isVisible()
++        && IsWindow(src) && !IsIconic(src);
++
++    // NOTE: the 500ms refreshThumbnail tick keeps running whenever the item
++    // is visible and is the heartbeat that re-audits live state (source
++    // minimize/restore, geometry drift). Never stop it from here.
++    if (canLive) {
++        if (!m_dwmLive) {
++            if (dwmAttach()) {
++                update(); // drop any cached icon/capture frame immediately
++            }
++            // registration failure -> capture path simply continues
++        } else {
++            dwmSyncDest(); // catch drift missed by the event filter
++        }
++    } else if (m_dwmLive) {
++        dwmDetach();
++    }
++}
++
++bool WindowThumbnail::dwmAttach()
++{
++    if (m_dwmThumb || !window() || m_winId == 0) {
++        return false;
++    }
++    if (qEnvironmentVariableIsSet("PLASMA_NO_DWM_THUMBNAILS")) {
++        // user-facing kill switch: always fall back to the capture path
++        return false;
++    }
++    HWND src = reinterpret_cast<HWND>(static_cast<qulonglong>(m_winId));
++    if (!IsWindow(src)) {
++        return false;
++    }
++    HWND dst = reinterpret_cast<HWND>(window()->winId());
++    if (!IsWindow(dst)) {
++        return false;
++    }
++    HTHUMBNAIL thumb = nullptr;
++    // One registration per item; multiple items may preview the same window.
++    if (FAILED(DwmRegisterThumbnail(dst, src, &thumb))) {
++        return false;
++    }
++    m_dwmThumb = thumb;
++    m_dwmLive = true;
++    window()->installEventFilter(this);
++    dwmSyncDest();
++    return true;
++}
++
++void WindowThumbnail::dwmDetach()
++{
++    if (m_dwmThumb) {
++        DwmUnregisterThumbnail(static_cast<HTHUMBNAIL>(m_dwmThumb));
++        m_dwmThumb = nullptr;
++    }
++    if (m_dwmLive && window()) {
++        window()->removeEventFilter(this);
++    }
++    if (m_dwmLive) {
++        m_dwmLive = false;
++        update();
++    }
++}
++
++void WindowThumbnail::dwmSyncDest()
++{
++    if (!m_dwmThumb || !window()) {
++        return;
++    }
++    const QRectF b = boundingRect();
++    if (b.isEmpty()) {
++        return;
++    }
++    const QPointF tl = mapToScene(b.topLeft());
++    const qreal dpr = window()->devicePixelRatio();
++
++    RECT request;
++    request.left   = LONG(tl.x() * dpr);
++    request.top    = LONG(tl.y() * dpr);
++    request.right  = LONG((tl.x() + b.width()) * dpr);
++    request.bottom = LONG((tl.y() + b.height()) * dpr);
++
++    SIZE srcSize = {0, 0};
++    if (SUCCEEDED(DwmQueryThumbnailSourceSize(static_cast<HTHUMBNAIL>(m_dwmThumb), &srcSize))
++            && srcSize.cx > 0 && srcSize.cy > 0) {
++        // aspect-fit inside the requested rect, centered (mirrors the
++        // KeepAspectRatio behaviour of the capture fallback)
++        const double reqW = double(request.right - request.left);
++        const double reqH = double(request.bottom - request.top);
++        const double scale = qMin(reqW / double(srcSize.cx), reqH / double(srcSize.cy));
++        const double fitW = double(srcSize.cx) * scale;
++        const double fitH = double(srcSize.cy) * scale;
++        request.left   = LONG(request.left + (reqW - fitW) / 2.0);
++        request.top    = LONG(request.top + (reqH - fitH) / 2.0);
++        request.right  = request.left + LONG(fitW);
++        request.bottom = request.top + LONG(fitH);
++    }
++
++    DWM_THUMBNAIL_PROPERTIES props = {};
++    props.dwFlags = DWM_TNP_RECTDESTINATION | DWM_TNP_VISIBLE | DWM_TNP_SOURCECLIENTAREAONLY;
++    props.rcDestination = request;
++    props.fVisible = TRUE;
++    props.fSourceClientAreaOnly = TRUE;
++    DwmUpdateThumbnailProperties(static_cast<HTHUMBNAIL>(m_dwmThumb), &props);
++}
+ #endif
+ 
+ #if HAVE_XCB_COMPOSITE
